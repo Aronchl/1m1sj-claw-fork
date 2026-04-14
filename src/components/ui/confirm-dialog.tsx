@@ -3,6 +3,7 @@
  * Keeps focus within the renderer to avoid Windows focus loss after native dialogs.
  */
 import { useEffect, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -16,6 +17,10 @@ interface ConfirmDialogProps {
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
   onError?: (error: unknown) => void;
+  /** Optional hook for E2E / automation */
+  testId?: string;
+  /** Shown on the confirm button while `onConfirm` promise is pending */
+  pendingConfirmLabel?: string;
 }
 
 export function ConfirmDialog({
@@ -28,6 +33,8 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   onError,
+  testId,
+  pendingConfirmLabel,
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
@@ -73,16 +80,22 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className={cn(
+        'fixed inset-0 z-[120] flex items-center justify-center bg-black/50',
+        confirming && 'cursor-wait',
+      )}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
+      aria-busy={confirming}
+      data-testid={testId}
       onKeyDown={handleKeyDown}
     >
       <div
         className={cn(
           'mx-4 max-w-md rounded-lg border bg-card p-6 shadow-lg',
-          'focus:outline-none'
+          'focus:outline-none',
+          confirming && 'pointer-events-none',
         )}
         tabIndex={-1}
       >
@@ -90,7 +103,7 @@ export function ConfirmDialog({
           {title}
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">{message}</p>
-        <div className="mt-6 flex justify-end gap-2">
+        <div className={cn('mt-6 flex justify-end gap-2', confirming && 'pointer-events-auto')}>
           <Button
             ref={cancelRef}
             variant="outline"
@@ -103,8 +116,16 @@ export function ConfirmDialog({
             variant={variant === 'destructive' ? 'destructive' : 'default'}
             onClick={handleConfirm}
             disabled={confirming}
+            className={cn('min-w-[7rem]', confirming && 'disabled:opacity-100')}
           >
-            {confirmLabel}
+            {confirming ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                <span>{pendingConfirmLabel ?? confirmLabel}</span>
+              </>
+            ) : (
+              confirmLabel
+            )}
           </Button>
         </div>
       </div>

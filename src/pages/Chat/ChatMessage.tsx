@@ -4,7 +4,7 @@
  * with markdown, thinking sections, images, and tool cards.
  */
 import { useState, useCallback, useEffect, memo } from 'react';
-import { Sparkles, Copy, Check, ChevronDown, ChevronRight, Wrench, FileText, Film, Music, FileArchive, File, X, FolderOpen, ZoomIn, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Sparkles, AlarmClock, Copy, Check, ChevronDown, ChevronRight, Wrench, FileText, Film, Music, FileArchive, File, X, FolderOpen, ZoomIn, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createPortal } from 'react-dom';
@@ -13,12 +13,15 @@ import { cn } from '@/lib/utils';
 import { invokeIpc } from '@/lib/api-client';
 import type { RawMessage, AttachedFileMeta } from '@/stores/chat';
 import { extractText, extractThinking, extractImages, extractToolUse, formatTimestamp } from './message-utils';
+import { useTranslation } from 'react-i18next';
 
 interface ChatMessageProps {
   message: RawMessage;
   showThinking: boolean;
-  suppressToolCards?: boolean;
-  suppressProcessAttachments?: boolean;
+  /** When true, non-user avatars use the scheduled-task style (cron session). */
+  cronSession?: boolean;
+  /** Hide avatar when this message is grouped with previous assistant/system row. */
+  hideAvatar?: boolean;
   isStreaming?: boolean;
   streamingTools?: Array<{
     id?: string;
@@ -42,11 +45,12 @@ function imageSrc(img: ExtractedImage): string | null {
 export const ChatMessage = memo(function ChatMessage({
   message,
   showThinking,
-  suppressToolCards = false,
-  suppressProcessAttachments = false,
+  cronSession = false,
+  hideAvatar = false,
   isStreaming = false,
   streamingTools = [],
 }: ChatMessageProps) {
+  const { t } = useTranslation('chat');
   const isUser = message.role === 'user';
   const role = typeof message.role === 'string' ? message.role.toLowerCase() : '';
   const isToolResult = role === 'toolresult' || role === 'tool_result';
@@ -56,13 +60,9 @@ export const ChatMessage = memo(function ChatMessage({
   const images = extractImages(message);
   const tools = extractToolUse(message);
   const visibleThinking = showThinking ? thinking : null;
-  const visibleTools = suppressToolCards ? [] : tools;
-  const shouldHideProcessAttachments = suppressProcessAttachments
-    && (hasText || !!visibleThinking || images.length > 0 || visibleTools.length > 0);
+  const visibleTools = tools;
 
-  const attachedFiles = shouldHideProcessAttachments
-    ? (message._attachedFiles || []).filter((file) => file.source !== 'tool-result')
-    : (message._attachedFiles || []);
+  const attachedFiles = message._attachedFiles || [];
   const [lightboxImg, setLightboxImg] = useState<{ src: string; fileName: string; filePath?: string; base64?: string; mimeType?: string } | null>(null);
 
   // Never render tool result messages in chat UI
@@ -70,9 +70,13 @@ export const ChatMessage = memo(function ChatMessage({
 
   const hasStreamingToolStatus = isStreaming && streamingTools.length > 0;
   if (!hasText && !visibleThinking && images.length === 0 && visibleTools.length === 0 && attachedFiles.length === 0 && !hasStreamingToolStatus) return null;
+  const hasProcessContent = Boolean(visibleThinking) || visibleTools.length > 0 || hasStreamingToolStatus;
+
+  const anchorId = message.id || message._rowKey;
 
   return (
     <div
+      data-message-id={anchorId || undefined}
       className={cn(
         'flex gap-3 group',
         isUser ? 'flex-row-reverse' : 'flex-row',
@@ -80,9 +84,22 @@ export const ChatMessage = memo(function ChatMessage({
     >
       {/* Avatar */}
       {!isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
-          <Sparkles className="h-4 w-4" />
-        </div>
+        hideAvatar ? (
+          // Keep assistant content aligned when grouped with previous assistant row.
+          <div className="h-8 w-8 shrink-0 mt-1" aria-hidden />
+        ) : (
+          <div
+            className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 text-foreground',
+              cronSession
+                ? 'bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-100'
+                : 'bg-black/5 dark:bg-white/5',
+            )}
+            title={cronSession ? t('cronSession.avatarHint') : undefined}
+          >
+            {cronSession ? <AlarmClock className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+          </div>
+        )
       )}
 
       {/* Content */}
@@ -92,22 +109,13 @@ export const ChatMessage = memo(function ChatMessage({
           isUser ? 'items-end' : 'items-start',
         )}
       >
-        {isStreaming && !isUser && streamingTools.length > 0 && (
-          <ToolStatusBar tools={streamingTools} />
-        )}
-
-        {/* Thinking section */}
-        {visibleThinking && (
-          <ThinkingBlock content={visibleThinking} />
-        )}
-
-        {/* Tool use cards */}
-        {visibleTools.length > 0 && (
-          <div className="space-y-1">
-            {visibleTools.map((tool, i) => (
-              <ToolCard key={tool.id || i} name={tool.name} input={tool.input} />
-            ))}
-          </div>
+        {hasProcessContent && (
+          <ProcessPanel
+            thinking={visibleThinking}
+            tools={visibleTools}
+            streamingTools={streamingTools}
+            isStreaming={isStreaming}
+          />
         )}
 
         {/* Images — rendered ABOVE text bubble for user messages */}
@@ -165,11 +173,21 @@ export const ChatMessage = memo(function ChatMessage({
 
         {/* Main text bubble */}
         {hasText && (
-          <MessageBubble
-            text={text}
-            isUser={isUser}
-            isStreaming={isStreaming}
-          />
+          <>
+            {cronSession && message.role === 'system' && (
+              <div className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100">
+                <AlarmClock className="h-3 w-3" />
+                {t('cronSession.badge')}
+              </div>
+            )}
+            <MessageBubble
+              text={text}
+              isUser={isUser}
+              isStreaming={isStreaming}
+              cronSystem={cronSession && message.role === 'system'}
+              errorBubble={Boolean(message.isError && !isUser)}
+            />
+          </>
         )}
 
         {/* Images from content blocks — assistant messages (below text) */}
@@ -250,16 +268,15 @@ export const ChatMessage = memo(function ChatMessage({
   );
 });
 
-function formatDuration(durationMs?: number): string | null {
-  if (!durationMs || !Number.isFinite(durationMs)) return null;
-  if (durationMs < 1000) return `${Math.round(durationMs)}ms`;
-  return `${(durationMs / 1000).toFixed(1)}s`;
-}
-
-function ToolStatusBar({
+function ProcessPanel({
+  thinking,
   tools,
+  streamingTools,
+  isStreaming,
 }: {
-  tools: Array<{
+  thinking: string | null;
+  tools: Array<{ id?: string; name: string; input?: unknown }>;
+  streamingTools: Array<{
     id?: string;
     toolCallId?: string;
     name: string;
@@ -267,35 +284,107 @@ function ToolStatusBar({
     durationMs?: number;
     summary?: string;
   }>;
+  isStreaming: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const toolCount = Math.max(tools.length, streamingTools.length);
+  const title = isStreaming ? '思考中' : '已完成思考';
+  const subtitle = `执行了 ${toolCount} 个步骤`;
+  const hasThinking = Boolean(thinking && thinking.trim().length > 0);
+  const staticTools = tools.map((tool) => ({
+    key: tool.id || tool.name,
+    name: tool.name,
+    input: tool.input,
+    status: 'completed' as const,
+    summary: '',
+  }));
+  const liveTools = streamingTools.map((tool) => ({
+    key: tool.toolCallId || tool.id || tool.name,
+    name: tool.name,
+    input: undefined,
+    status: tool.status,
+    summary: tool.summary || '',
+  }));
+  const mergedSteps = isStreaming ? liveTools : staticTools;
+
   return (
-    <div className="w-full space-y-1">
-      {tools.map((tool) => {
-        const duration = formatDuration(tool.durationMs);
-        const isRunning = tool.status === 'running';
-        const isError = tool.status === 'error';
-        return (
-          <div
-            key={tool.toolCallId || tool.id || tool.name}
-            className={cn(
-              'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors',
-              isRunning && 'border-primary/30 bg-primary/5 text-foreground',
-              !isRunning && !isError && 'border-border/50 bg-muted/20 text-muted-foreground',
-              isError && 'border-destructive/30 bg-destructive/5 text-destructive',
-            )}
-          >
-            {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
-            {!isRunning && !isError && <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />}
-            {isError && <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
-            <Wrench className="h-3 w-3 shrink-0 opacity-60" />
-            <span className="font-mono text-[12px] font-medium">{tool.name}</span>
-            {duration && <span className="text-[11px] opacity-60">{tool.summary ? `(${duration})` : duration}</span>}
-            {tool.summary && (
-              <span className="truncate text-[11px] opacity-70">{tool.summary}</span>
-            )}
-          </div>
-        );
-      })}
+    <div className="w-full rounded-2xl border border-black/10 dark:border-white/10 bg-[#f1eee6] dark:bg-white/[0.04]">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors rounded-2xl"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-foreground/85">{title}</p>
+          <p className="text-[12px] text-[#4d6a92] dark:text-muted-foreground">{subtitle}</p>
+        </div>
+        {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+      </button>
+      {expanded && (
+        <div className="px-4 pb-3 space-y-2">
+          {mergedSteps.length > 0 && (
+            <div className="relative pl-4">
+              <div className="absolute left-[8px] top-1 bottom-1 w-px bg-black/10 dark:bg-white/10" />
+              <div className="space-y-2">
+                {mergedSteps.map((step) => (
+                  <ProcessStepCard
+                    key={step.key}
+                    name={step.name}
+                    input={step.input}
+                    status={step.status}
+                    summary={step.summary}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {hasThinking && <ThinkingBlock content={thinking!} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProcessStepCard({
+  name,
+  input,
+  status,
+  summary,
+}: {
+  name: string;
+  input: unknown;
+  status: 'running' | 'completed' | 'error';
+  summary?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="relative rounded-lg">
+      <span className={cn(
+        'absolute -left-[10px] top-3 h-2.5 w-2.5 rounded-full border border-white/70 dark:border-black/30',
+        status === 'running' && 'bg-blue-500',
+        status === 'completed' && 'bg-green-500',
+        status === 'error' && 'bg-red-500',
+      )} />
+      <button
+        type="button"
+        className="flex w-full items-center justify-between px-2 py-1.5 text-left rounded-md hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          {status === 'running' && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
+          {status === 'completed' && <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />}
+          {status === 'error' && <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+          <Wrench className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="text-[13px] font-medium text-foreground/80">{name}</span>
+          {summary ? <span className="truncate text-[11px] text-muted-foreground">{summary}</span> : null}
+        </div>
+        {expanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+      </button>
+      {expanded && input !== undefined && input !== null && (
+        <pre className="ml-2 mr-2 mb-2 rounded-md bg-white/60 dark:bg-black/20 p-2 text-xs text-[#4d6484] dark:text-muted-foreground overflow-x-auto">
+          {typeof input === 'string' ? input : JSON.stringify(input, null, 2)}
+        </pre>
+      )}
     </div>
   );
 }
@@ -334,10 +423,14 @@ function MessageBubble({
   text,
   isUser,
   isStreaming,
+  cronSystem = false,
+  errorBubble = false,
 }: {
   text: string;
   isUser: boolean;
   isStreaming: boolean;
+  cronSystem?: boolean;
+  errorBubble?: boolean;
 }) {
   return (
     <div
@@ -346,7 +439,11 @@ function MessageBubble({
         !isUser && 'w-full',
         isUser
           ? 'bg-[#0a84ff] text-white shadow-sm'
-          : 'bg-black/5 dark:bg-white/5 text-foreground',
+          : errorBubble
+            ? 'border border-destructive/30 bg-destructive/10 text-destructive dark:text-destructive'
+            : cronSystem
+              ? 'border border-amber-500/20 bg-amber-500/[0.08] text-foreground dark:border-amber-500/30 dark:bg-amber-500/10'
+              : 'bg-black/5 dark:bg-white/5 text-foreground',
       )}
     >
       {isUser ? (
@@ -607,25 +704,3 @@ function ImageLightbox({
 
 // ── Tool Card ───────────────────────────────────────────────────
 
-function ToolCard({ name, input }: { name: string; input: unknown }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[14px]">
-      <button
-        className="flex items-center gap-2 w-full px-3 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-        <Wrench className="h-3 w-3 shrink-0 opacity-60" />
-        <span className="font-mono text-xs">{name}</span>
-        {expanded ? <ChevronDown className="h-3 w-3 ml-auto" /> : <ChevronRight className="h-3 w-3 ml-auto" />}
-      </button>
-      {expanded && input != null && (
-        <pre className="px-3 pb-2 text-xs text-muted-foreground overflow-x-auto">
-          {typeof input === 'string' ? input : JSON.stringify(input, null, 2) as string}
-        </pre>
-      )}
-    </div>
-  );
-}

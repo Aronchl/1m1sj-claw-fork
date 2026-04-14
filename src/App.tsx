@@ -9,13 +9,11 @@ import { Toaster } from 'sonner';
 import i18n from './i18n';
 import { MainLayout } from './components/layout/MainLayout';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Models } from './pages/Models';
 import { Chat } from './pages/Chat';
-import { Agents } from './pages/Agents';
-import { Channels } from './pages/Channels';
-import { Skills } from './pages/Skills';
+import { Inspiration } from './pages/Inspiration';
+import { Growth } from './pages/Growth';
 import { Cron } from './pages/Cron';
-import { Settings } from './pages/Settings';
+import { LEGACY_PATH_TO_SETTINGS_MODAL, useSettingsUiStore } from './stores/settings-ui';
 import { Setup } from './pages/Setup';
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
@@ -90,18 +88,31 @@ class ErrorBoundary extends Component<
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const skipSetupForE2E = typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).get('e2eSkipSetup') === '1';
   const initSettings = useSettingsStore((state) => state.init);
   const theme = useSettingsStore((state) => state.theme);
   const language = useSettingsStore((state) => state.language);
   const setupComplete = useSettingsStore((state) => state.setupComplete);
   const initGateway = useGatewayStore((state) => state.init);
   const initProviders = useProviderStore((state) => state.init);
+  const openSettingsModal = useSettingsUiStore((state) => state.openModal);
 
   useEffect(() => {
     initSettings();
   }, [initSettings]);
+
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/settings' || path.startsWith('/settings/')) {
+      openSettingsModal('general');
+      navigate('/', { replace: true });
+      return;
+    }
+    const section = LEGACY_PATH_TO_SETTINGS_MODAL[path];
+    if (section) {
+      openSettingsModal(section);
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, navigate, openSettingsModal]);
 
   // Sync i18n language with persisted settings on mount
   useEffect(() => {
@@ -122,16 +133,27 @@ function App() {
 
   // Redirect to setup wizard if not complete
   useEffect(() => {
-    if (!setupComplete && !skipSetupForE2E && !location.pathname.startsWith('/setup')) {
+    if (!setupComplete && !location.pathname.startsWith('/setup')) {
       navigate('/setup');
     }
-  }, [setupComplete, skipSetupForE2E, location.pathname, navigate]);
+  }, [setupComplete, location.pathname, navigate]);
 
   // Listen for navigation events from main process
   useEffect(() => {
     const handleNavigate = (...args: unknown[]) => {
       const path = args[0];
       if (typeof path === 'string') {
+        if (path === '/settings' || path.startsWith('/settings/')) {
+          openSettingsModal('general');
+          navigate('/', { replace: true });
+          return;
+        }
+        const section = LEGACY_PATH_TO_SETTINGS_MODAL[path];
+        if (section) {
+          openSettingsModal(section);
+          navigate('/', { replace: true });
+          return;
+        }
         navigate(path);
       }
     };
@@ -143,7 +165,7 @@ function App() {
         unsubscribe();
       }
     };
-  }, [navigate]);
+  }, [navigate, openSettingsModal]);
 
   // Apply theme
   useEffect(() => {
@@ -174,12 +196,9 @@ function App() {
           {/* Main application routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Chat />} />
-            <Route path="/models" element={<Models />} />
-            <Route path="/agents" element={<Agents />} />
-            <Route path="/channels" element={<Channels />} />
-            <Route path="/skills" element={<Skills />} />
-            <Route path="/cron" element={<Cron />} />
-            <Route path="/settings/*" element={<Settings />} />
+            <Route path="/inspiration" element={<Inspiration />} />
+            <Route path="/growth" element={<Growth />} />
+            <Route path="/tasks" element={<Cron />} />
           </Route>
         </Routes>
 

@@ -1,8 +1,8 @@
 {
     "steps": {
         "welcome": {
-            "title": "ClawXへようこそ",
-            "description": "AIアシスタントの設定準備が整いました"
+            "title": "ClawNodeへようこそ",
+            "description": "インテリジェントアシスタントが、質の高いコミュニティ運営者への成長を支援します"
         },
         "runtime": {
             "title": "環境チェック",
@@ -22,17 +22,17 @@
         },
         "complete": {
             "title": "完了！",
-            "description": "ClawXを使用する準備が整いました"
+            "description": "ClawNodeを使用する準備が整いました"
         }
     },
     "welcome": {
-        "title": "ClawXへようこそ",
-        "description": "ClawXはOpenClawのグラフィカルインターフェースで、お気に入りのメッセージングプラットフォームでAIアシスタントを簡単に使用できます。",
+        "title": "ClawNodeへようこそ",
+        "description": "ClawNodeは一码一世界が提供するインテリジェントアシスタントで、質の高いコミュニティ運営者へ素早く成長するための支援をします。",
         "features": {
-            "noCommand": "コマンドライン不要",
-            "modernUI": "モダンで美しいインターフェース",
-            "bundles": "プリインストールされたスキルバンドル",
-            "crossPlatform": "クロスプラットフォーム対応"
+            "noCommand": "コミュニティ運営ノウハウを複数プリインストール",
+            "modernUI": "一码一世界リソースライブラリにアクセス",
+            "bundles": "プライベートドメインのコミュニティ運営をサポート",
+            "crossPlatform": "交流フォーラムで、多くの仲間と共に成長"
         }
     },
     "runtime": {
@@ -40,7 +40,7 @@
         "viewLogs": "ログを表示",
         "recheck": "再チェック",
         "nodejs": "Node.js ランタイム",
-        "openclaw": "OpenClaw パッケージ",
+        "openclaw": "一码一世界 パッケージ",
         "gateway": "ゲートウェイサービス",
         "startGateway": "ゲートウェイを起動",
         "status": {
@@ -48,11 +48,11 @@
             "success": "Node.js は利用可能です",
             "error": "失敗",
             "gatewayRunning": "ポート {{port}} で実行中",
-            "packageReady": "OpenClaw パッケージ準備完了"
+            "packageReady": "一码一世界 パッケージ準備完了"
         },
         "issue": {
             "title": "環境の問題が検出されました",
-            "desc": "OpenClawが正しくインストールされていることを確認してください。詳細はログを確認してください。"
+            "desc": "一码一世界が正しくインストールされていることを確認してください。詳細はログを確認してください。"
         },
         "logs": {
             "title": "アプリケーションログ",
@@ -113,7 +113,7 @@
     },
     "complete": {
         "title": "セットアップ完了！",
-        "subtitle": "ClawXの構成が完了し、使用準備が整いました。AIアシスタントとのチャットを開始できます。",
+        "subtitle": "ClawNodeの構成が完了し、使用準備が整いました。AIアシスタントとのチャットを開始できます。",
         "provider": "AI プロバイダー",
         "components": "コンポーネント",
         "gateway": "ゲートウェイ",

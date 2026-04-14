@@ -86,8 +86,9 @@ export function handleRuntimeEventState(
                 : undefined;
 
               // Mirror enrichWithToolResultFiles: collect images + file refs for next assistant msg
-              const toolFiles: AttachedFileMeta[] = extractImagesAsAttachedFiles(finalMsg.content)
-                .map((file) => (file.source ? file : { ...file, source: 'tool-result' }));
+              const toolFiles: AttachedFileMeta[] = [
+                ...extractImagesAsAttachedFiles(finalMsg.content),
+              ];
               if (matchedPath) {
                 for (const f of toolFiles) {
                   if (!f.filePath) {
@@ -100,9 +101,9 @@ export function handleRuntimeEventState(
               if (text) {
                 const mediaRefs = extractMediaRefs(text);
                 const mediaRefPaths = new Set(mediaRefs.map(r => r.filePath));
-                for (const ref of mediaRefs) toolFiles.push(makeAttachedFile(ref, 'tool-result'));
+                for (const ref of mediaRefs) toolFiles.push(makeAttachedFile(ref));
                 for (const ref of extractRawFilePaths(text)) {
-                  if (!mediaRefPaths.has(ref.filePath)) toolFiles.push(makeAttachedFile(ref, 'tool-result'));
+                  if (!mediaRefPaths.has(ref.filePath)) toolFiles.push(makeAttachedFile(ref));
                 }
               }
               set((s) => {

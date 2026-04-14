@@ -38,6 +38,7 @@ describe('chat target routing', () => {
         id: 'main',
         name: 'Main',
         isDefault: true,
+        isPreinstalled: false,
         modelDisplay: 'MiniMax',
         inheritedModel: true,
         workspace: '~/.openclaw/workspace',
@@ -49,6 +50,7 @@ describe('chat target routing', () => {
         id: 'research',
         name: 'Research',
         isDefault: false,
+        isPreinstalled: false,
         modelDisplay: 'Claude',
         inheritedModel: false,
         workspace: '~/.openclaw/workspace-research',
@@ -104,7 +106,7 @@ describe('chat target routing', () => {
       error: null,
       loading: false,
       thinkingLevel: null,
-      showThinking: true,
+      showThinking: false,
     });
 
     await useChatStore.getState().sendMessage('Hello direct agent', undefined, 'research');
@@ -148,7 +150,7 @@ describe('chat target routing', () => {
       error: null,
       loading: false,
       thinkingLevel: null,
-      showThinking: true,
+      showThinking: false,
     });
 
     await useChatStore.getState().sendMessage(

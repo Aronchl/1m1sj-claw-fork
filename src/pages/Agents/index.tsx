@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Bot, Check, Plus, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
+import { AlertCircle, Bot, Check, MoreHorizontal, Plus, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +26,10 @@ import type { ProviderAccount, ProviderVendorInfo, ProviderWithKeyInfo } from '@
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { setAgentUiExtras } from '@/lib/agent-ui-storage';
+import { AGENT_AVATAR_GRADIENT_CLASSES, AGENT_AVATAR_PRESET_COUNT } from '@/lib/agent-avatar-presets';
+import type { PageLayout } from '@/lib/page-layout';
+import { pageInnerClass, pageLoadingShellClass, pageShellClass } from '@/lib/page-layout';
 import telegramIcon from '@/assets/channels/telegram.svg';
 import discordIcon from '@/assets/channels/discord.svg';
 import whatsappIcon from '@/assets/channels/whatsapp.svg';
@@ -27,6 +38,9 @@ import dingtalkIcon from '@/assets/channels/dingtalk.svg';
 import feishuIcon from '@/assets/channels/feishu.svg';
 import wecomIcon from '@/assets/channels/wecom.svg';
 import qqIcon from '@/assets/channels/qq.svg';
+
+const CREATE_TAGLINE_MAX = 15;
+const CREATE_PERSONA_MAX = 1000;
 
 interface ChannelAccountItem {
   accountId: string;
@@ -43,6 +57,10 @@ interface ChannelGroupItem {
   defaultAccountId: string;
   status: 'connected' | 'connecting' | 'disconnected' | 'error';
   accounts: ChannelAccountItem[];
+}
+
+function agentRowSupportsDelete(agent: AgentSummary): boolean {
+  return !agent.isDefault && !agent.isPreinstalled;
 }
 
 interface RuntimeProviderOption {
@@ -92,7 +110,9 @@ function hasConfiguredProviderCredentials(
   return statusById.get(account.id)?.hasKey ?? false;
 }
 
-export function Agents() {
+export function Agents(props: { layout?: PageLayout } = {}) {
+  const { layout = 'page' } = props;
+  const embed = layout === 'modal';
   const { t } = useTranslation('agents');
   const gatewayStatus = useGatewayStore((state) => state.status);
   const refreshProviderSnapshot = useProviderStore((state) => state.refreshProviderSnapshot);
@@ -106,7 +126,6 @@ export function Agents() {
     deleteAgent,
   } = useAgentsStore();
   const [channelGroups, setChannelGroups] = useState<ChannelGroupItem[]>([]);
-  const [hasCompletedInitialLoad, setHasCompletedInitialLoad] = useState(() => agents.length > 0);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
@@ -117,21 +136,13 @@ export function Agents() {
       const response = await hostApiFetch<{ success: boolean; channels?: ChannelGroupItem[] }>('/api/channels/accounts');
       setChannelGroups(response.channels || []);
     } catch {
-      // Keep the last rendered snapshot when channel account refresh fails.
+      setChannelGroups([]);
     }
   }, []);
 
   useEffect(() => {
-    let mounted = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void Promise.all([fetchAgents(), fetchChannelAccounts(), refreshProviderSnapshot()]).finally(() => {
-      if (mounted) {
-        setHasCompletedInitialLoad(true);
-      }
-    });
-    return () => {
-      mounted = false;
-    };
+    void Promise.all([fetchAgents(), fetchChannelAccounts(), refreshProviderSnapshot()]);
   }, [fetchAgents, fetchChannelAccounts, refreshProviderSnapshot]);
 
   useEffect(() => {
@@ -159,45 +170,50 @@ export function Agents() {
     () => agents.find((agent) => agent.id === activeAgentId) ?? null,
     [activeAgentId, agents],
   );
-
-  const visibleAgents = agents;
-  const visibleChannelGroups = channelGroups;
-  const isUsingStableValue = loading && hasCompletedInitialLoad;
   const handleRefresh = () => {
     void Promise.all([fetchAgents(), fetchChannelAccounts()]);
   };
 
-  if (loading && !hasCompletedInitialLoad) {
+  if (loading) {
     return (
-      <div className="flex flex-col -m-6 dark:bg-background min-h-[calc(100vh-2.5rem)] items-center justify-center">
+      <div className={pageLoadingShellClass(layout)}>
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div data-testid="agents-page" className="flex flex-col -m-6 dark:bg-background h-[calc(100vh-2.5rem)] overflow-hidden">
-      <div className="w-full max-w-5xl mx-auto flex flex-col h-full p-10 pt-16">
-        <div className="flex flex-col md:flex-row md:items-start justify-between mb-12 shrink-0 gap-4">
-          <div>
-            <h1
-              className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight"
-              style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
-            >
-              {t('title')}
-            </h1>
-            <p className="text-[17px] text-foreground/70 font-medium">{t('subtitle')}</p>
-          </div>
+    <div className={pageShellClass(layout)}>
+      <div className={pageInnerClass(layout)}>
+        <div
+          className={cn(
+            'flex flex-col md:flex-row md:items-start justify-between mb-12 shrink-0 gap-4',
+            embed && 'md:justify-end',
+          )}
+        >
+          {!embed && (
+            <div>
+              <h1
+                className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight"
+                style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
+              >
+                {t('title')}
+              </h1>
+              <p className="text-[17px] text-foreground/70 font-medium">{t('subtitle')}</p>
+            </div>
+          )}
           <div className="flex items-center gap-3 md:mt-2">
             <Button
               variant="outline"
               onClick={handleRefresh}
               className="h-9 text-[13px] font-medium rounded-full px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none text-foreground/80 hover:text-foreground transition-colors"
             >
-              <RefreshCw className={cn('h-3.5 w-3.5 mr-2', isUsingStableValue && 'animate-spin')} />
+              <RefreshCw className="h-3.5 w-3.5 mr-2" />
               {t('refresh')}
             </Button>
             <Button
+              type="button"
+              data-testid="agents-add-agent"
               onClick={() => setShowAddDialog(true)}
               className="h-9 text-[13px] font-medium rounded-full px-4 shadow-none"
             >
@@ -227,11 +243,11 @@ export function Agents() {
           )}
 
           <div className="space-y-3">
-            {visibleAgents.map((agent) => (
+            {agents.map((agent) => (
               <AgentCard
                 key={agent.id}
                 agent={agent}
-                channelGroups={visibleChannelGroups}
+                channelGroups={channelGroups}
                 onOpenSettings={() => setActiveAgentId(agent.id)}
                 onDelete={() => setAgentToDelete(agent)}
               />
@@ -243,8 +259,15 @@ export function Agents() {
       {showAddDialog && (
         <AddAgentDialog
           onClose={() => setShowAddDialog(false)}
-          onCreate={async (name, options) => {
-            await createAgent(name, options);
+          onCreate={async (name, options, ui) => {
+            const newId = await createAgent(name, options);
+            if (newId) {
+              setAgentUiExtras(newId, {
+                tagline: ui.tagline.trim().slice(0, CREATE_TAGLINE_MAX),
+                persona: ui.persona.slice(0, CREATE_PERSONA_MAX),
+                avatarIndex: ui.avatarIndex,
+              });
+            }
             setShowAddDialog(false);
             toast.success(t('toast.agentCreated'));
           }}
@@ -254,7 +277,7 @@ export function Agents() {
       {activeAgent && (
         <AgentSettingsModal
           agent={activeAgent}
-          channelGroups={visibleChannelGroups}
+          channelGroups={channelGroups}
           onClose={() => setActiveAgentId(null)}
         />
       )}
@@ -264,8 +287,10 @@ export function Agents() {
         title={t('deleteDialog.title')}
         message={agentToDelete ? t('deleteDialog.message', { name: agentToDelete.name }) : ''}
         confirmLabel={t('common:actions.delete')}
+        pendingConfirmLabel={t('deleteDialog.deleting')}
         cancelLabel={t('common:actions.cancel')}
         variant="destructive"
+        testId="agents-delete-confirm-dialog"
         onConfirm={async () => {
           if (!agentToDelete) return;
           try {
@@ -316,6 +341,8 @@ function AgentCard({
 
   return (
     <div
+      data-testid="agent-card"
+      data-agent-id={agent.id}
       className={cn(
         'group flex items-start gap-4 p-4 rounded-2xl transition-all text-left border relative overflow-hidden bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5',
         agent.isDefault && 'bg-black/[0.04] dark:bg-white/[0.06]'
@@ -339,17 +366,39 @@ function AgentCard({
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {!agent.isDefault && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="opacity-0 group-hover:opacity-100 h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-                onClick={onDelete}
-                title={t('deleteAgent')}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
+            {agentRowSupportsDelete(agent) ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    data-testid="agent-card-more-menu"
+                    className="h-7 w-7 text-muted-foreground opacity-0 transition-all hover:bg-black/5 hover:text-foreground group-hover:opacity-100 data-[state=open]:opacity-100 dark:hover:bg-white/10"
+                    title={t('moreMenu')}
+                    aria-label={t('moreMenu')}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={6}
+                  className="min-w-[9.5rem] rounded-xl border border-black/10 bg-popover p-1.5 shadow-xl dark:border-white/10 dark:bg-card"
+                >
+                  <DropdownMenuItem
+                    data-testid="agent-card-delete-menu-item"
+                    className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    onSelect={() => {
+                      onDelete();
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>{t('common:actions.delete')}</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             <Button
               variant="ghost"
               size="icon"
@@ -410,10 +459,17 @@ function AddAgentDialog({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (name: string, options: { inheritWorkspace: boolean }) => Promise<void>;
+  onCreate: (
+    name: string,
+    options: { inheritWorkspace: boolean },
+    ui: { tagline: string; persona: string; avatarIndex: number },
+  ) => Promise<void>;
 }) {
   const { t } = useTranslation('agents');
   const [name, setName] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [persona, setPersona] = useState('');
+  const [avatarIndex, setAvatarIndex] = useState(0);
   const [inheritWorkspace, setInheritWorkspace] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -421,7 +477,11 @@ function AddAgentDialog({
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await onCreate(name.trim(), { inheritWorkspace });
+      await onCreate(name.trim(), { inheritWorkspace }, {
+        tagline,
+        persona,
+        avatarIndex,
+      });
     } catch (error) {
       toast.error(t('toast.agentCreateFailed', { error: String(error) }));
       setSaving(false);
@@ -431,30 +491,97 @@ function AddAgentDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <Card className="max-h-[min(92vh,880px)] w-full max-w-2xl overflow-hidden rounded-3xl border-0 bg-[#f3f1e9] shadow-2xl dark:bg-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-2xl font-serif font-normal tracking-tight">
+          <CardTitle className="font-serif text-2xl font-normal tracking-tight">
             {t('createDialog.title')}
           </CardTitle>
-          <CardDescription className="text-[15px] mt-1 text-foreground/70">
+          <CardDescription className="mt-1 text-[15px] text-foreground/70">
             {t('createDialog.description')}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6 pt-4 p-6">
+        <CardContent className="max-h-[min(78vh,720px)] space-y-5 overflow-y-auto p-6 pt-4">
           <div className="space-y-2.5">
-            <Label htmlFor="agent-name" className={labelClasses}>{t('createDialog.nameLabel')}</Label>
+            <Label htmlFor="agent-name" className={labelClasses}>
+              {t('createDialog.nameLabel')}
+            </Label>
             <Input
               id="agent-name"
+              data-testid="agents-create-name-input"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              maxLength={10}
+              onChange={(event) => setName(event.target.value.slice(0, 10))}
               placeholder={t('createDialog.namePlaceholder')}
               className={inputClasses}
             />
           </div>
+          <div className="space-y-2.5">
+            <Label htmlFor="agent-tagline" className={labelClasses}>
+              {t('createDialog.taglineLabel')}
+            </Label>
+            <div className="relative">
+              <Input
+                id="agent-tagline"
+                value={tagline}
+                maxLength={CREATE_TAGLINE_MAX}
+                onChange={(event) => setTagline(event.target.value.slice(0, CREATE_TAGLINE_MAX))}
+                placeholder={t('createDialog.taglinePlaceholder')}
+                className={inputClasses}
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground">
+                {tagline.length}/{CREATE_TAGLINE_MAX}
+              </span>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            <Label className={labelClasses}>{t('createDialog.avatarLabel')}</Label>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: AGENT_AVATAR_PRESET_COUNT }, (_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setAvatarIndex(i)}
+                  className={cn(
+                    'flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br text-[13px] font-semibold text-white shadow-sm ring-2 ring-offset-2 ring-offset-[#f3f1e9] transition dark:ring-offset-card',
+                    AGENT_AVATAR_GRADIENT_CLASSES[i] ?? 'from-gray-400 to-gray-600',
+                    avatarIndex === i ? 'ring-primary' : 'ring-transparent',
+                  )}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-black/15 text-muted-foreground dark:border-white/20"
+                onClick={() => toast.info(t('createDialog.avatarUploadSoon'))}
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            <Label htmlFor="agent-persona" className={labelClasses}>
+              {t('createDialog.personaLabel')}
+            </Label>
+            <div className="relative">
+              <Textarea
+                id="agent-persona"
+                value={persona}
+                onChange={(e) => setPersona(e.target.value.slice(0, CREATE_PERSONA_MAX))}
+                placeholder={t('createDialog.personaPlaceholder')}
+                className="min-h-[140px] resize-none rounded-xl border border-black/10 bg-[#eeece3] text-[13px] dark:border-white/10 dark:bg-muted"
+              />
+              <span className="pointer-events-none absolute bottom-2 right-2 text-[11px] text-muted-foreground">
+                {persona.length}/{CREATE_PERSONA_MAX}
+              </span>
+            </div>
+          </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label htmlFor="inherit-workspace" className={labelClasses}>{t('createDialog.inheritWorkspaceLabel')}</Label>
+              <Label htmlFor="inherit-workspace" className={labelClasses}>
+                {t('createDialog.inheritWorkspaceLabel')}
+              </Label>
               <p className="text-[13px] text-foreground/60">{t('createDialog.inheritWorkspaceDescription')}</p>
             </div>
             <Switch
@@ -463,22 +590,24 @@ function AddAgentDialog({
               onCheckedChange={setInheritWorkspace}
             />
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 pt-1">
             <Button
               variant="outline"
               onClick={onClose}
-              className="h-9 text-[13px] font-medium rounded-full px-4 border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 shadow-none text-foreground/80 hover:text-foreground"
+              className="h-9 rounded-full border-black/10 bg-transparent px-4 text-[13px] font-medium text-foreground/80 shadow-none hover:bg-black/5 hover:text-foreground dark:border-white/10 dark:hover:bg-white/5"
             >
               {t('common:actions.cancel')}
             </Button>
             <Button
+              type="button"
+              data-testid="agents-create-submit"
               onClick={() => void handleSubmit()}
               disabled={saving || !name.trim()}
-              className="h-9 text-[13px] font-medium rounded-full px-4 shadow-none"
+              className="h-9 rounded-full px-4 text-[13px] font-medium shadow-none"
             >
               {saving ? (
                 <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                   {t('creating')}
                 </>
               ) : (

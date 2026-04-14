@@ -8,7 +8,7 @@ export const PROVIDER_TYPES = [
   'siliconflow',
   'minimax-portal',
   'minimax-portal-cn',
-  'modelstudio',
+  'qwen-portal',
   'ollama',
   'custom',
 ] as const;
@@ -23,7 +23,7 @@ export const BUILTIN_PROVIDER_TYPES = [
   'siliconflow',
   'minimax-portal',
   'minimax-portal-cn',
-  'modelstudio',
+  'qwen-portal',
   'ollama',
 ] as const;
 

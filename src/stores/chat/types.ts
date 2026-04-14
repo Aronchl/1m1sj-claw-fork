@@ -5,7 +5,6 @@ export interface AttachedFileMeta {
   fileSize: number;
   preview: string | null;
   filePath?: string;
-  source?: 'user-upload' | 'tool-result' | 'message-ref';
 }
 
 /** Raw message from OpenClaw chat.history */
@@ -20,6 +19,8 @@ export interface RawMessage {
   isError?: boolean;
   /** Local-only: file metadata for user-uploaded attachments (not sent to/from Gateway) */
   _attachedFiles?: AttachedFileMeta[];
+  /** Local-only: stable React list key for streaming ↔ committed reconciliation */
+  _rowKey?: string;
 }
 
 /** Content block inside a message */
@@ -83,6 +84,12 @@ export interface ChatState {
   sessionLabels: Record<string, string>;
   /** Last message timestamp (ms) per session key, used for sorting */
   sessionLastActivity: Record<string, number>;
+  /** Per-session read cursor (ms), used for in-session unread / ordering helpers */
+  sessionReadAt: Record<string, number>;
+
+  /** After global search: scroll chat to message with this id once history is loaded */
+  pendingScrollToMessageId: string | null;
+  setPendingScrollToMessageId: (id: string | null) => void;
 
   // Thinking
   showThinking: boolean;
@@ -90,8 +97,9 @@ export interface ChatState {
 
   // Actions
   loadSessions: () => Promise<void>;
-  switchSession: (key: string) => void;
-  newSession: () => void;
+  switchSession: (key: string, opts?: { scrollToMessageId?: string | null }) => void;
+  /** When `forAgentId` is set, the new session is created under that agent (`agent:<id>:session-…`). */
+  newSession: (forAgentId?: string) => void;
   deleteSession: (key: string) => Promise<void>;
   cleanupEmptySession: () => void;
   loadHistory: (quiet?: boolean) => Promise<void>;

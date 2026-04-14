@@ -10,19 +10,29 @@
     "modelLine": "Model: {{model}}{{suffix}}",
     "channelsLine": "Channels: {{channels}}",
     "deleteAgent": "Agent を削除",
+    "moreMenu": "その他",
     "settings": "設定",
     "creating": "作成中...",
     "createDialog": {
         "title": "Agent を追加",
-        "description": "名前だけで新しい Agent を作成できます。メイン Agent のワークスペース初期ファイルを引き継ぐかどうかも選択できます。",
+        "description": "名前・ひとこと・アバター・指示を設定できます。ワークスペースの継承は任意です。",
         "nameLabel": "Agent 名",
         "namePlaceholder": "Coding Helper",
+        "taglineLabel": "ひとこと",
+        "taglinePlaceholder": "短い紹介",
+        "avatarLabel": "アバター",
+        "avatarUploadSoon": "カスタムアップロードは近日対応",
+        "personaLabel": "Agent 指示",
+        "personaPlaceholder": "経歴・口調・境界など…",
+        "defaultTagline": "温かく忍耐強いキャンパスガイド",
+        "defaultPersona": "経歴：大学のカウンセラーとして184名の学生をサポート。入職初年度に学長から「責任感が強い」と称賛され、学生からは親しみを込めて呼ばれる存在。誰に対しても忍耐強く寄り添う。\nスタイル：穏やかで共感力が高く、感情の揺れに気づきやすい。物事の本質を見抜くのが得意。",
         "inheritWorkspaceLabel": "メイン Agent のワークスペースを引き継ぐ",
         "inheritWorkspaceDescription": "SOUL.md、AGENTS.md などの初期ファイルをコピーします"
     },
     "deleteDialog": {
         "title": "Agent を削除",
-        "message": "ClawX から「{{name}}」を削除しますか？この操作により Agent と、その ClawX 管理下のワークスペース、実行時ファイル、セッションファイルがディスクから完全に削除されます。"
+        "message": "ClawNode から「{{name}}」を削除しますか？この操作により Agent と、その ClawNode 管理下のワークスペース、実行時ファイル、セッションファイルがディスクから完全に削除されます。",
+        "deleting": "削除中…"
     },
     "settingsDialog": {
         "title": "{{name}} Settings",

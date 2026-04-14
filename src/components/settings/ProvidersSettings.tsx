@@ -34,7 +34,6 @@ import {
   getProviderDocsUrl,
   type ProviderType,
   getProviderIconUrl,
-  normalizeProviderApiKeyInput,
   resolveProviderApiKeyForSave,
   resolveProviderModelForSave,
   shouldShowProviderModelId,
@@ -59,7 +58,8 @@ const labelClasses = 'text-[14px] text-foreground/80 font-bold';
 type ArkMode = 'apikey' | 'codeplan';
 
 function normalizeFallbackProviderIds(ids?: string[]): string[] {
-  return Array.from(new Set((ids ?? []).filter(Boolean)));
+  const safeIds = Array.isArray(ids) ? ids : [];
+  return Array.from(new Set(safeIds.filter(Boolean)));
 }
 
 function getProtocolBaseUrlPlaceholder(
@@ -78,7 +78,8 @@ function fallbackProviderIdsEqual(a?: string[], b?: string[]): boolean {
 }
 
 function normalizeFallbackModels(models?: string[]): string[] {
-  return Array.from(new Set((models ?? []).map((model) => model.trim()).filter(Boolean)));
+  const safeModels = Array.isArray(models) ? models : [];
+  return Array.from(new Set(safeModels.map((model) => model.trim()).filter(Boolean)));
 }
 
 function fallbackModelsEqual(a?: string[], b?: string[]): boolean {
@@ -148,7 +149,13 @@ function getAuthModeLabel(
   }
 }
 
-export function ProvidersSettings() {
+type ProvidersSettingsProps = {
+  /** Compact header for embedding (e.g. chat model dialog). */
+  variant?: 'default' | 'embedded';
+};
+
+export function ProvidersSettings({ variant = 'default' }: ProvidersSettingsProps) {
+  const embedded = variant === 'embedded';
   const { t } = useTranslation('settings');
   const devModeUnlocked = useSettingsStore((state) => state.devModeUnlocked);
   const {
@@ -241,13 +248,28 @@ export function ProvidersSettings() {
   };
 
   return (
-    <div data-testid="providers-settings" className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 data-testid="providers-settings-title" className="text-3xl font-serif text-foreground font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+    <div data-testid="providers-settings" className={embedded ? 'space-y-4' : 'space-y-6'}>
+      <div className="flex items-center justify-between gap-2">
+        <h2
+          data-testid="providers-settings-title"
+          className={
+            embedded
+              ? 'text-[15px] font-semibold tracking-tight text-foreground'
+              : 'text-3xl font-serif text-foreground font-normal tracking-tight'
+          }
+          style={embedded ? undefined : { fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
+        >
           {t('aiProviders.title', 'AI Providers')}
         </h2>
-        <Button data-testid="providers-add-button" onClick={() => setShowAddDialog(true)} className="rounded-full px-5 h-9 shadow-none font-medium text-[13px]">
-          <Plus className="h-4 w-4 mr-2" />
+        <Button
+          data-testid="providers-add-button"
+          onClick={() => setShowAddDialog(true)}
+          className={cn(
+            'rounded-full shadow-none font-medium',
+            embedded ? 'h-8 shrink-0 px-3 text-[12px]' : 'h-9 px-5 text-[13px]',
+          )}
+        >
+          <Plus className={cn('mr-2', embedded ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
           {t('aiProviders.add')}
         </Button>
       </div>
@@ -425,11 +447,10 @@ function ProviderCard({
     try {
       const payload: { newApiKey?: string; updates?: Partial<ProviderConfig> } = {};
       const normalizedFallbackModels = normalizeFallbackModels(fallbackModelsText.split('\n'));
-      const normalizedNewKey = normalizeProviderApiKeyInput(newKey);
 
-      if (normalizedNewKey) {
+      if (newKey.trim()) {
         setValidating(true);
-        const result = await onValidateKey(normalizedNewKey, {
+        const result = await onValidateKey(newKey, {
           baseUrl: baseUrl.trim() || undefined,
           apiProtocol: (account.vendorId === 'custom' || account.vendorId === 'ollama') ? apiProtocol : undefined,
         });
@@ -439,7 +460,7 @@ function ProviderCard({
           setSaving(false);
           return;
         }
-        payload.newApiKey = normalizedNewKey;
+        payload.newApiKey = newKey.trim();
       }
 
       {
@@ -1136,9 +1157,6 @@ function AddProviderDialog({
   };
 
   const availableTypes = PROVIDER_TYPE_INFO.filter((type) => {
-    // Skip providers that are temporarily hidden from the UI.
-    if (type.hidden) return false;
-
     // MiniMax portal variants are mutually exclusive — hide BOTH variants
     // when either one already exists (account may have vendorId of either variant).
     const hasMinimax = existingVendorIds.has('minimax-portal') || existingVendorIds.has('minimax-portal-cn');
@@ -1166,14 +1184,13 @@ function AddProviderDialog({
     try {
       // Validate key first if the provider requires one and a key was entered
       const requiresKey = typeInfo?.requiresApiKey ?? false;
-      const normalizedApiKey = normalizeProviderApiKeyInput(apiKey);
-      if (requiresKey && !normalizedApiKey) {
+      if (requiresKey && !apiKey.trim()) {
         setValidationError(t('aiProviders.toast.invalidKey')); // reusing invalid key msg or should add 'required' msg? null checks
         setSaving(false);
         return;
       }
-      if (requiresKey && normalizedApiKey) {
-        const result = await onValidateKey(selectedType, normalizedApiKey, {
+      if (requiresKey && apiKey) {
+        const result = await onValidateKey(selectedType, apiKey, {
           baseUrl: baseUrl.trim() || undefined,
           apiProtocol: (selectedType === 'custom' || selectedType === 'ollama') ? apiProtocol : undefined,
         });
@@ -1194,7 +1211,7 @@ function AddProviderDialog({
       await onAdd(
         selectedType,
         name || (typeInfo?.id === 'custom' ? t('aiProviders.custom') : typeInfo?.name) || selectedType,
-        normalizedApiKey,
+        apiKey.trim(),
         {
           baseUrl: baseUrl.trim() || undefined,
           apiProtocol: (selectedType === 'custom' || selectedType === 'ollama') ? apiProtocol : undefined,
@@ -1658,7 +1675,6 @@ function AddProviderDialog({
 
               <div className="flex justify-end gap-3">
                 <Button
-                  data-testid="add-provider-submit-button"
                   onClick={handleAdd}
                   className={cn("rounded-full px-8 h-[42px] text-[13px] font-semibold bg-[#0a84ff] hover:bg-[#007aff] text-white shadow-sm", useOAuthFlow && "hidden")}
                   disabled={!selectedType || saving || (showModelIdField && modelId.trim().length === 0)}

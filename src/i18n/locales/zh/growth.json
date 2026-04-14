@@ -1,0 +1,28 @@
+{
+  "title": "成长",
+  "subtitle": "视频与文章，帮你更快上手 ClawNode、把事做成。",
+  "sectionVideos": "视频",
+  "sectionArticles": "文章",
+  "items": {
+    "v1": {
+      "title": "ClawNode 快速入门",
+      "meta": "8:24 · 入门"
+    },
+    "v2": {
+      "title": "Agent、会话与技能实战",
+      "meta": "12:05 · 进阶"
+    },
+    "a1": {
+      "title": "聊天记录与 Gateway 如何协同",
+      "meta": "约 5 分钟"
+    },
+    "a2": {
+      "title": "定时任务与渠道投递",
+      "meta": "约 7 分钟"
+    },
+    "a3": {
+      "title": "连接消息渠道的安全建议",
+      "meta": "约 4 分钟"
+    }
+  }
+}

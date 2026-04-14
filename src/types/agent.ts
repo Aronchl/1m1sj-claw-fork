@@ -2,6 +2,8 @@ export interface AgentSummary {
   id: string;
   name: string;
   isDefault: boolean;
+  /** Bundled preinstalled agents cannot be removed (see preinstalled-manifest). */
+  isPreinstalled: boolean;
   modelDisplay: string;
   modelRef?: string | null;
   overrideModelRef?: string | null;

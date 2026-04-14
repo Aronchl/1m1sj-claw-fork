@@ -1,0 +1,28 @@
+{
+  "title": "Grow",
+  "subtitle": "Videos and articles to help you learn ClawNode and get more done.",
+  "sectionVideos": "Videos",
+  "sectionArticles": "Articles",
+  "items": {
+    "v1": {
+      "title": "Getting started with ClawNode",
+      "meta": "8:24 · Beginner"
+    },
+    "v2": {
+      "title": "Agents, sessions, and skills in practice",
+      "meta": "12:05 · Intermediate"
+    },
+    "a1": {
+      "title": "How chat history and Gateway work together",
+      "meta": "5 min read"
+    },
+    "a2": {
+      "title": "Scheduling tasks and channel delivery",
+      "meta": "7 min read"
+    },
+    "a3": {
+      "title": "Security tips for connecting messaging apps",
+      "meta": "4 min read"
+    }
+  }
+}

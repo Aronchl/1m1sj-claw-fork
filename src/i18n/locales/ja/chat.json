@@ -1,8 +1,24 @@
 {
+    "search": {
+        "title": "検索",
+        "placeholder": "検索",
+        "close": "閉じる",
+        "clear": "クリア",
+        "hint": "キーワードを入力してこの端末の会話を検索します。",
+        "loading": "検索中…",
+        "empty": "該当なし",
+        "emptyAgents": "一致する Agent がありません",
+        "tabAll": "すべて",
+        "tabAgent": "Agent",
+        "tabChat": "会話",
+        "tabCron": "スケジュール",
+        "groupToday": "今日",
+        "groupYesterday": "昨日"
+    },
     "gatewayNotRunning": "ゲートウェイが停止中",
-    "gatewayRequired": "チャットを利用するには OpenClaw ゲートウェイが実行されている必要があります。自動的に起動するか、設定から起動できます。",
+    "gatewayRequired": "チャットを利用するには 一码一世界 ゲートウェイが実行されている必要があります。自動的に起動するか、設定から起動できます。",
     "welcome": {
-        "title": "ClawX チャット",
+        "title": "ClawNode チャット",
         "subtitle": "お手伝いできることはありますか？",
         "askQuestions": "タスク対応",
         "askQuestionsDesc": "タスク指向の依頼に対応します",
@@ -15,38 +31,49 @@
         "refresh": "チャットを更新",
         "showThinking": "思考を表示",
         "hideThinking": "思考を非表示",
-        "currentAgent": "現在の会話相手: {{agent}}"
+        "currentAgent": "現在の会話相手: {{agent}}",
+        "tokenUsed": "使用 {{used}}",
+        "tokenHint": "ローカルセッションのトークン集計（残量 API はありません）",
+        "agentDetails": "Agent 詳細",
+        "openSettings": "設定",
+        "scheduledTask": "定期タスク"
     },
-    "taskPanel": {
-        "eyebrow": "実行ビュー",
-        "title": "タスクの流れ",
-        "emptyTitle": "まだ構造化されたステップはありません",
-        "emptyBody": "実行が始まると、ClawX は思考・ツール呼び出し・最終化の状態をここに表示します。",
-        "status": {
-            "idle": "待機中",
-            "running_one": "進行中 1 件",
-            "running_other": "進行中 {{count}} 件"
-        },
-        "stepStatus": {
-            "running": "実行中",
-            "completed": "完了",
-            "error": "エラー"
-        }
+    "cronSession": {
+        "badge": "定期",
+        "avatarHint": "定期タスクのスレッドです"
     },
-    "executionGraph": {
-        "eyebrow": "会話実行",
-        "title": "実行グラフ",
-        "status": {
-            "active": "進行中",
-            "latest": "直近",
-            "previous": "履歴"
-        },
-        "branchLabel": "branch",
-        "userTrigger": "ユーザー入力",
-        "userTriggerHint": "上のユーザーメッセージがトリガーです",
-        "agentRun": "{{agent}} の実行",
-        "agentReply": "アシスタント返信",
-        "agentReplyHint": "結果は下のアシスタント返信に反映されます"
+    "agentEdit": {
+        "title": "Agent を編集",
+        "nameRequired": "名前を入力してください",
+        "saved": "保存しました",
+        "nameLabel": "Agent 名",
+        "taglineLabel": "ひとこと",
+        "taglinePlaceholder": "短いサブタイトル",
+        "avatarLabel": "アバター",
+        "avatarUploadSoon": "カスタムアップロードは近日対応",
+        "cancel": "キャンセル",
+        "save": "保存"
+    },
+    "agentDetails": {
+        "sheetTitle": "Agent 詳細",
+        "collapse": "閉じる",
+        "editProfile": "名前とひとことを編集",
+        "personaSection": "Agent 指示",
+        "editPersona": "指示を編集",
+        "personaPlaceholder": "背景・トーン・制約など…",
+        "cancel": "キャンセル",
+        "save": "保存",
+        "personaSaved": "この端末に保存しました",
+        "personaEmpty": "タップして指示を追加（端末のみ）",
+        "inspirationSection": "インスピレーション",
+        "addInspiration": "+ インスピレーションを追加",
+        "defaultTagline": "アシスタント"
+    },
+    "addInspiration": {
+        "title": "インスピレーションを追加",
+        "close": "閉じる",
+        "add": "追加",
+        "pinnedToast": "リストに追加しました"
     },
     "composer": {
         "attachFiles": "ファイルを添付",
@@ -59,7 +86,49 @@
         "stop": "停止",
         "gatewayConnected": "接続済み",
         "gatewayStatus": "ゲートウェイ {{state}} | ポート: {{port}} {{pid}}",
-        "retryFailedAttachments": "失敗した添付を再試行"
+        "retryFailedAttachments": "失敗した添付を再試行",
+        "chrome": {
+            "inputPlaceholder": "タスクを説明するか、何でも質問してください",
+            "defaultModel": "既定モデル",
+            "modelPillCustomApi": "カスタム API",
+            "modelPillCodingPlan": "Coding Plan",
+            "modelDialogTitle": "モデル設定",
+            "modelOptionDefault": "既定モデル",
+            "modelOptionCustomApi": "カスタム — モデル API",
+            "modelOptionCodingPlan": "カスタム — Coding Plan",
+            "modelDisclaimer": "*カスタム設定は任意です。利用時は法令を遵守してください。",
+            "modelCustomConfigHint": "以下は「設定 → モデル」と同じです。プロバイダー・キー・モデルを追加・編集できます。",
+            "confirm": "確定",
+            "cancel": "キャンセル",
+            "close": "閉じる",
+            "modelConfigure": "モデルを選ぶ・設定…",
+            "modelQuickDefault": "既定モデルを使う",
+            "skills": "スキル",
+            "search": "検索",
+            "skillManagement": "スキル管理",
+            "noSkills": "インストール済みスキルがありません",
+            "skillsNeedGateway": "ゲートウェイ接続後にスキルを読み込みます",
+            "skillsLoading": "スキルを読み込み中…",
+            "currentInspiration": "選んだひらめき",
+            "findInspiration": "ひらめき",
+            "cronSection": "定時タスク",
+            "commonTasksSection": "インスピレーション",
+            "cronNeedGateway": "ゲートウェイ接続後に定時タスクを表示",
+            "noCronJobs": "定時タスクがありません",
+            "inspirationCharity": "公益・愛心",
+            "inspirationCharityBody": "公益と愛心をテーマに、実現しやすい行動案・対象・発信のポイントを整理してください。",
+            "inspirationStartup": "起業支援",
+            "inspirationStartupBody": "リソース・立ち上げ・リスク回避の観点から、起業家向けの実行チェックリストを提案してください。",
+            "inspirationProduct": "プロダクトを形に",
+            "inspirationProductBody": "ポジション・体験・成長ループを軸に、良いプロダクトにするための論点と次の検証ステップを整理してください。",
+            "commonTools": "ツール",
+            "toolPortal": "ポータル運用",
+            "toolPortalLine": "【タスク】ポータル：確認すべきモジュール・お知らせ・リンクを列挙。",
+            "toolCommunity": "コミュニティ運営",
+            "toolCommunityLine": "【タスク】コミュニティ：今日の話題案と注意点を提案。",
+            "toolGreenProduct": "グリーンプロダクト案",
+            "toolGreenProductLine": "【タスク】グリーン製品：材料・梱包・訴求のたたき台を箇条書き。"
+        }
     },
     "historyBuckets": {
         "today": "今日",

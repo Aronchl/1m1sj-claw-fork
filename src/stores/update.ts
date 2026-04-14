@@ -38,12 +38,14 @@ interface UpdateState {
   isInitialized: boolean;
   /** Seconds remaining before auto-install, or null if inactive. */
   autoInstallCountdown: number | null;
+  /** User clicked install; app is about to quit — avoid duplicate clicks. */
+  installPending: boolean;
 
   // Actions
   init: () => Promise<void>;
   checkForUpdates: () => Promise<void>;
   downloadUpdate: () => Promise<void>;
-  installUpdate: () => void;
+  installUpdate: () => Promise<void>;
   cancelAutoInstall: () => Promise<void>;
   setChannel: (channel: 'stable' | 'beta' | 'dev') => Promise<void>;
   setAutoDownload: (enable: boolean) => Promise<void>;
@@ -58,6 +60,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   error: null,
   isInitialized: false,
   autoInstallCountdown: null,
+  installPending: false,
 
   init: async () => {
     if (get().isInitialized) return;
@@ -83,6 +86,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         updateInfo: status.info || null,
         progress: status.progress || null,
         error: status.error || null,
+        installPending: false,
       });
     } catch (error) {
       console.error('Failed to get update status:', error);
@@ -98,12 +102,14 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         progress?: ProgressInfo;
         error?: string;
       };
-      set({
+      set((state) => ({
         status: status.status,
-        updateInfo: status.info || null,
-        progress: status.progress || null,
-        error: status.error || null,
-      });
+        updateInfo: status.info ?? null,
+        progress: status.progress ?? null,
+        error: status.error ?? null,
+        installPending:
+          status.status === 'downloaded' ? state.installPending : false,
+      }));
     });
 
     window.electron.ipcRenderer.on('update:auto-install-countdown', (data) => {
@@ -130,7 +136,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   },
 
   checkForUpdates: async () => {
-    set({ status: 'checking', error: null });
+    set({ status: 'checking', error: null, installPending: false });
     
     try {
       const result = await Promise.race([
@@ -170,7 +176,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   },
 
   downloadUpdate: async () => {
-    set({ status: 'downloading', error: null });
+    set({ status: 'downloading', error: null, installPending: false });
     
     try {
       const result = await invokeIpc<{
@@ -186,8 +192,17 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     }
   },
 
-  installUpdate: () => {
-    void invokeIpc('update:install');
+  installUpdate: async () => {
+    set({ installPending: true, error: null });
+    try {
+      await invokeIpc('update:install');
+    } catch (error) {
+      set({
+        installPending: false,
+        status: 'error',
+        error: String(error),
+      });
+    }
   },
 
   cancelAutoInstall: async () => {
@@ -214,5 +229,5 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     }
   },
 
-  clearError: () => set({ error: null, status: 'idle' }),
+  clearError: () => set({ error: null, status: 'idle', installPending: false }),
 }));

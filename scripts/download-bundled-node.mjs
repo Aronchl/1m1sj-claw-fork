@@ -4,7 +4,9 @@ import 'zx/globals';
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const NODE_VERSION = '22.16.0';
-const BASE_URL = `https://nodejs.org/dist/v${NODE_VERSION}`;
+const DEFAULT_BASE = `https://nodejs.org/dist/v${NODE_VERSION}`;
+/** Override when nodejs.org is slow/unreachable. No trailing slash. */
+const BASE_URL = (process.env.BUNDLED_NODE_BASE_URL || DEFAULT_BASE).replace(/\/$/, '');
 const OUTPUT_BASE = path.join(ROOT_DIR, 'resources', 'bin');
 
 const TARGETS = {

@@ -1,8 +1,73 @@
 {
   "title": "设置",
-  "subtitle": "配置您的 ClawX 体验",
+  "subtitle": "配置您的 ClawNode 体验",
+  "modal": {
+    "title": "设置",
+    "navGeneral": "通用设置",
+    "navApp": "应用设置",
+    "navAbout": "关于我们",
+    "close": "关闭"
+  },
+  "profile": {
+    "sectionTitle": "账户",
+    "avatar": "头像",
+    "username": "用户名",
+    "displayNamePlaceholder": "源生",
+    "notLoggedIn": "未登录",
+    "login": "去登录",
+    "logout": "退出登录",
+    "logoutSuccess": "已退出桌面端登录",
+    "logoutFailed": "退出登录失败，请稍后重试"
+  },
+  "feedback": {
+    "title": "问题反馈",
+    "headline": "帮助 ClawNode 变得更好 ❤️",
+    "placeholder": "请描述你遇到的问题或建议，越详细越好~\n例如：\n· 我在使用XX功能时，点击后没有反应\n· 建议增加XX功能，这样会更方便",
+    "uploadMedia": "上传截图 / 录屏",
+    "quickScreenshot": "快速截屏",
+    "allowLogs": "允许上传日志 帮助定位问题（日志全程加密传输）",
+    "submit": "提交反馈",
+    "toastSubmitted": "感谢反馈，我们已收到。",
+    "toastUploadNotImplemented": "上传功能即将推出。",
+    "toastScreenshotNotImplemented": "快速截屏即将推出。"
+  },
+  "wechatConnect": {
+    "tabWechat": "微信",
+    "tabMaxin": "一码登录",
+    "title": "扫码接入微信对话",
+    "subtitle": "扫码后可通过微信直接对话，随时随地让 ClawNode 帮你做事",
+    "footer": "扫码验证后的微信可以直接操控电脑，请谨慎保管二维码"
+  },
+  "maxinConnect": {
+    "title": "扫码一码登录",
+    "subtitle": "请使用微信扫一扫二维码，在手机端完成授权后登录桌面端",
+    "footer": "请勿将二维码分享给他人，授权后可登录当前桌面应用",
+    "scanHint": "使用微信扫一扫完成一码登录",
+    "openedHint": "已扫码进入授权页，请在手机上点击「授权登录」",
+    "openedQrHint": "已扫码，请在手机上点击「授权登录」",
+    "authorizedQrHint": "已授权，请在手机上点击「我知道了」完成登录",
+    "authorizedHint": "手机端已授权，请在手机端点击“我知道了”完成登录",
+    "confirmedHint": "一码登录成功",
+    "qrExpiredTitle": "二维码已过期",
+    "tapToRefresh": "点击刷新",
+    "expiredHint": "二维码已过期，请刷新重试",
+    "consumedHint": "该登录二维码已被使用，请刷新获取新的二维码",
+    "cancelledHint": "用户已取消授权，请刷新二维码重试",
+    "loggedInHint": "当前设备已登录",
+    "errorHint": "一码登录失败，请稍后重试",
+    "notConfiguredHint": "当前版本暂未配置一码登录，请联系管理员或使用其他登录方式。"
+  },
+  "aboutUi": {
+    "currentVersionLabel": "当前版本 v{{version}}",
+    "updateAvailable": "可更新",
+    "checkUpdate": "检查更新",
+    "versionLog": "版本日志",
+    "enterWebsite": "进入官网",
+    "terms": "服务协议",
+    "privacy": "隐私保护协议"
+  },
   "appearance": {
-    "title": "通用",
+    "title": "通用设置",
     "description": "自定义外观和风格",
     "theme": "主题",
     "light": "浅色",
@@ -10,7 +75,7 @@
     "system": "跟随系统",
     "language": "语言",
     "launchAtStartup": "开机自动启动",
-    "launchAtStartupDesc": "登录系统后自动启动 ClawX"
+    "launchAtStartupDesc": "登录系统后自动启动 ClawNode"
   },
   "aiProviders": {
     "title": "AI 模型提供商",
@@ -37,7 +102,7 @@
     "notRequired": "非必填",
     "empty": {
       "title": "未配置提供商",
-      "desc": "添加 AI 提供商以开始使用 ClawX",
+      "desc": "添加 AI 提供商以开始使用 ClawNode",
       "cta": "添加您的第一个提供商"
     },
     "dialog": {
@@ -60,7 +125,7 @@
       "protocol": "协议",
       "advancedConfig": "高级配置",
       "userAgent": "User-Agent",
-      "userAgentPlaceholder": "ClawX/1.0",
+      "userAgentPlaceholder": "ClawNode/1.0",
       "fallbackModels": "回退模型",
       "fallbackProviders": "跨 Provider 回退",
       "fallbackModelIds": "同 Provider 回退模型 ID",
@@ -127,14 +192,14 @@
   },
   "gateway": {
     "title": "网关",
-    "description": "OpenClaw 网关设置",
+    "description": "一码一世界 网关设置",
     "status": "状态",
     "port": "端口",
     "logs": "日志",
     "appLogs": "应用日志",
     "openFolder": "打开文件夹",
     "autoStart": "自动启动网关",
-    "autoStartDesc": "ClawX 启动时自动启动网关",
+    "autoStartDesc": "ClawNode 启动时自动启动网关",
     "proxyTitle": "代理",
     "proxyDesc": "让 Electron 和 Gateway 的网络请求都走本地代理客户端。",
     "proxyServer": "代理服务器",
@@ -155,7 +220,7 @@
   },
   "updates": {
     "title": "更新",
-    "description": "保持 ClawX 最新",
+    "description": "保持 ClawNode 最新",
     "autoCheck": "自动检查更新",
     "autoCheckDesc": "启动时检查更新",
     "autoDownload": "自动更新",
@@ -165,6 +230,7 @@
       "downloading": "正在下载更新...",
       "available": "可用更新：v{{version}}",
       "downloaded": "准备安装：v{{version}}",
+      "installing": "正在关闭应用以完成安装…",
       "autoInstalling": "将在 {{seconds}} 秒后重启并安装更新...",
       "failed": "检查更新失败",
       "latest": "您已拥有最新版本",
@@ -175,6 +241,7 @@
       "downloading": "下载中...",
       "download": "下载更新",
       "install": "安装并重启",
+      "installing": "安装中…",
       "cancelAutoInstall": "取消",
       "retry": "重试",
       "check": "检查更新"
@@ -182,7 +249,10 @@
     "currentVersion": "当前版本",
     "whatsNew": "更新内容：",
     "errorDetails": "错误详情：",
-    "help": "开启自动更新后，更新将自动下载并安装。"
+    "help": "开启自动更新后，更新将自动下载并安装。",
+    "toast": {
+      "installStarted": "应用即将关闭以完成更新安装，请稍候。"
+    }
   },
   "advanced": {
     "title": "高级",
@@ -209,34 +279,34 @@
     "devMode": "开发者模式",
     "devModeDesc": "显示开发者工具和快捷方式",
     "telemetry": "匿名使用数据",
-    "telemetryDesc": "允许提供匿名的基础使用数据，用于改进 ClawX"
+    "telemetryDesc": "允许提供匿名的基础使用数据，用于改进 ClawNode"
   },
   "developer": {
     "title": "开发者",
     "description": "开发者高级选项",
-    "console": "OpenClaw 控制台",
-    "consoleDesc": "访问原生 OpenClaw 管理界面",
+    "console": "一码一世界 控制台",
+    "consoleDesc": "访问原生 一码一世界 管理界面",
     "openConsole": "打开开发者控制台",
     "consoleNote": "使用注入的网关令牌打开控制台",
     "gatewayToken": "网关令牌",
     "gatewayTokenDesc": "如果需要，将此粘贴到控制台设置中",
     "tokenUnavailable": "令牌不可用",
     "tokenCopied": "网关令牌已复制",
-    "cli": "OpenClaw CLI",
-    "cliDesc": "复制命令以运行 OpenClaw，无需修改 PATH。",
+    "cli": "一码一世界 CLI",
+    "cliDesc": "复制命令以运行 一码一世界，无需修改 PATH。",
     "cliPowershell": "PowerShell 命令。",
     "cmdUnavailable": "命令不可用",
     "cmdCopied": "CLI 命令已复制",
-    "doctor": "OpenClaw Doctor 诊断",
+    "doctor": "一码一世界 Doctor 诊断",
     "doctorDesc": "运行 `openclaw doctor` 并查看原始诊断输出。",
     "runDoctor": "运行 Doctor",
     "runDoctorFix": "运行 Doctor 并修复",
-    "doctorSucceeded": "OpenClaw doctor 已完成",
-    "doctorFailed": "OpenClaw doctor 检测到问题",
-    "doctorRunFailed": "运行 OpenClaw doctor 失败",
-    "doctorFixSucceeded": "OpenClaw doctor 修复已完成",
-    "doctorFixFailed": "OpenClaw doctor 修复后仍有问题",
-    "doctorFixRunFailed": "运行 OpenClaw doctor 修复失败",
+    "doctorSucceeded": "一码一世界 doctor 已完成",
+    "doctorFailed": "一码一世界 doctor 检测到问题",
+    "doctorRunFailed": "运行 一码一世界 doctor 失败",
+    "doctorFixSucceeded": "一码一世界 doctor 修复已完成",
+    "doctorFixFailed": "一码一世界 doctor 修复后仍有问题",
+    "doctorFixRunFailed": "运行 一码一世界 doctor 修复失败",
     "doctorCopied": "诊断输出已复制",
     "doctorOk": "正常",
     "doctorIssue": "发现问题",
@@ -265,15 +335,15 @@
     "telemetryCleared": "埋点已清空",
     "installCmd": "安装 \"openclaw\" 命令",
     "installCmdDesc": "安装 ~/.local/bin/openclaw（无需管理员权限）",
-    "installTitle": "安装 OpenClaw 命令",
+    "installTitle": "安装 一码一世界 命令",
     "installMessage": "安装 \"openclaw\" 命令？",
     "installDetail": "这将创建 ~/.local/bin/openclaw。确保 ~/.local/bin 在您的 PATH 中。"
   },
   "about": {
     "title": "关于",
-    "appName": "ClawX",
+    "appName": "ClawNode",
     "tagline": "图形化 AI 助手",
-    "basedOn": "基于 OpenClaw",
+    "basedOn": "基于 一码一世界",
     "version": "版本 {{version}}",
     "docs": "官网",
     "github": "GitHub",

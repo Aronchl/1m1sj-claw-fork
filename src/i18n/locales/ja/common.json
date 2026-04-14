@@ -1,5 +1,17 @@
 {
     "sidebar": {
+        "brand": "ClawNode",
+        "brandTagline": "いつでもどこでも、仕事を速く進める AI アシスタント。",
+        "railChat": "チャット",
+        "railInspiration": "インスピレ",
+        "railGrowth": "成長",
+        "railTasks": "タスク",
+        "railHelp": "ヘルプ",
+        "railMobile": "モバイル",
+        "chatSearchPlaceholder": "検索",
+        "newAgent": "新規 Agent",
+        "newChatForAgent": "この Agent で新しいチャット",
+        "noSessionsUnderAgent": "まだありません。+ で開始",
         "chat": "チャット",
         "newChat": "新しいチャット",
         "cronTasks": "定期タスク",
@@ -11,7 +23,16 @@
         "devConsole": "開発者コンソール",
         "models": "モデル",
         "deleteSessionConfirm": "セッション \"{{label}}\" を削除してもよろしいですか？",
-        "openClawPage": "OpenClaw ページ"
+        "openClawPage": "一码一世界 ページ",
+        "loadMoreSessions": "さらに表示",
+        "viewMoreSessions": "もっと見る",
+        "sessionHistoryTitle": "履歴 — {{name}}",
+        "sessionHistorySearchPlaceholder": "履歴を検索…",
+        "sessionHistoryFilterAll": "すべて",
+        "sessionHistoryFilterDay": "過去24時間",
+        "sessionHistoryFilterWeek": "過去7日間",
+        "sessionHistoryLoadMore": "さらに読み込む",
+        "sessionHistoryEmptyFiltered": "条件に一致する履歴がありません"
     },
     "actions": {
         "save": "保存",
@@ -53,7 +74,7 @@
     },
     "gateway": {
         "notRunning": "ゲートウェイが停止中",
-        "notRunningDesc": "この機能を使用するには OpenClaw ゲートウェイが実行されている必要があります。自動的に起動するか、設定から起動できます。",
+        "notRunningDesc": "この機能を使用するには 一码一世界 ゲートウェイが実行されている必要があります。自動的に起動するか、設定から起動できます。",
         "warning": "ゲートウェイが停止中です。"
     }
 }

@@ -28,19 +28,33 @@ function loadManifest() {
   return parsed.skills;
 }
 
+/** Default when `gitHost` is omitted (ClawX preinstalled skills source). */
+const DEFAULT_GIT_HOST = 'https://gitee.com';
+
+function normalizeGitHost(host) {
+  const h = (host || DEFAULT_GIT_HOST).trim().replace(/\/+$/, '');
+  return h || DEFAULT_GIT_HOST;
+}
+
 function groupByRepoRef(entries) {
   const grouped = new Map();
   for (const entry of entries) {
     const ref = entry.ref || 'main';
-    const key = `${entry.repo}#${ref}`;
-    if (!grouped.has(key)) grouped.set(key, { repo: entry.repo, ref, entries: [] });
+    const gitHost = normalizeGitHost(entry.gitHost);
+    const key = `${gitHost}#${entry.repo}#${ref}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, { repo: entry.repo, ref, gitHost, entries: [] });
+    }
     grouped.get(key).entries.push(entry);
   }
   return [...grouped.values()];
 }
 
-function createRepoDirName(repo, ref) {
-  return `${repo.replace(/[\\/]/g, '__')}__${ref.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+function createRepoDirName(gitHost, repo, ref) {
+  const hostPart = gitHost
+    .replace(/^https?:\/\//, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_');
+  return `${hostPart}__${repo.replace(/[\\/]/g, '__')}__${ref.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 }
 
 function toGitPath(inputPath) {
@@ -80,8 +94,9 @@ async function extractArchive(archiveFileName, cwd) {
   }
 }
 
-async function fetchSparseRepo(repo, ref, paths, checkoutDir) {
-  const remote = `https://github.com/${repo}.git`;
+async function fetchSparseRepo(gitHost, repo, ref, paths, checkoutDir) {
+  const base = normalizeGitHost(gitHost);
+  const remote = `${base}/${repo}.git`;
   mkdirSync(checkoutDir, { recursive: true });
   const gitCheckoutDir = toGitPath(checkoutDir);
   const archiveFileName = '.subset.tar';
@@ -122,11 +137,11 @@ const lock = {
 
 const groups = groupByRepoRef(manifestSkills);
 for (const group of groups) {
-  const repoDir = join(TMP_ROOT, createRepoDirName(group.repo, group.ref));
+  const repoDir = join(TMP_ROOT, createRepoDirName(group.gitHost, group.repo, group.ref));
   const sparsePaths = [...new Set(group.entries.map((entry) => entry.repoPath))];
 
-  echo`Fetching ${group.repo} @ ${group.ref}`;
-  const commit = await fetchSparseRepo(group.repo, group.ref, sparsePaths, repoDir);
+  echo`Fetching ${group.gitHost}/${group.repo} @ ${group.ref}`;
+  const commit = await fetchSparseRepo(group.gitHost, group.repo, group.ref, sparsePaths, repoDir);
   echo`   commit ${commit}`;
 
   for (const entry of group.entries) {
@@ -146,15 +161,17 @@ for (const group of groups) {
     }
 
     const requestedVersion = (entry.version || '').trim();
-    const resolvedVersion = !requestedVersion || requestedVersion === 'main'
-      ? commit
-      : requestedVersion;
+    const resolvedVersion =
+      !requestedVersion || requestedVersion === 'main' || requestedVersion === 'master'
+        ? commit
+        : requestedVersion;
     lock.skills.push({
       slug: entry.slug,
       version: resolvedVersion,
       repo: entry.repo,
       repoPath: entry.repoPath,
       ref: group.ref,
+      gitHost: group.gitHost,
       commit,
     });
 

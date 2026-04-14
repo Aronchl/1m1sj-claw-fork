@@ -13,7 +13,7 @@ interface AgentsState {
   loading: boolean;
   error: string | null;
   fetchAgents: () => Promise<void>;
-  createAgent: (name: string, options?: { inheritWorkspace?: boolean }) => Promise<void>;
+  createAgent: (name: string, options?: { inheritWorkspace?: boolean }) => Promise<string | undefined>;
   updateAgent: (agentId: string, name: string) => Promise<void>;
   updateAgentModel: (agentId: string, modelRef: string | null) => Promise<void>;
   deleteAgent: (agentId: string) => Promise<void>;
@@ -23,17 +23,21 @@ interface AgentsState {
 }
 
 function applySnapshot(snapshot: AgentsSnapshot | undefined) {
+  const safeAgents = Array.isArray(snapshot?.agents) ? snapshot.agents : [];
+  const safeConfiguredChannelTypes = Array.isArray(snapshot?.configuredChannelTypes)
+    ? snapshot.configuredChannelTypes
+    : [];
   return snapshot ? {
-    agents: snapshot.agents ?? [],
+    agents: safeAgents,
     defaultAgentId: snapshot.defaultAgentId ?? 'main',
     defaultModelRef: snapshot.defaultModelRef ?? null,
-    configuredChannelTypes: snapshot.configuredChannelTypes ?? [],
+    configuredChannelTypes: safeConfiguredChannelTypes,
     channelOwners: snapshot.channelOwners ?? {},
     channelAccountOwners: snapshot.channelAccountOwners ?? {},
   } : {};
 }
 
-export const useAgentsStore = create<AgentsState>((set) => ({
+export const useAgentsStore = create<AgentsState>((set, get) => ({
   agents: [],
   defaultAgentId: 'main',
   defaultModelRef: null,
@@ -57,6 +61,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   },
 
   createAgent: async (name: string, options?: { inheritWorkspace?: boolean }) => {
+    const prevIds = new Set(get().agents.map((a) => a.id));
     set({ error: null });
     try {
       const snapshot = await hostApiFetch<AgentsSnapshot & { success?: boolean }>('/api/agents', {
@@ -64,6 +69,8 @@ export const useAgentsStore = create<AgentsState>((set) => ({
         body: JSON.stringify({ name, inheritWorkspace: options?.inheritWorkspace }),
       });
       set(applySnapshot(snapshot));
+      const agents = Array.isArray(snapshot.agents) ? snapshot.agents : [];
+      return agents.find((a) => !prevIds.has(a.id))?.id;
     } catch (error) {
       set({ error: String(error) });
       throw error;

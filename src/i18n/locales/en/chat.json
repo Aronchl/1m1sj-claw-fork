@@ -1,8 +1,24 @@
 {
+    "search": {
+        "title": "Search",
+        "placeholder": "Search",
+        "close": "Close",
+        "clear": "Clear",
+        "hint": "Type to search across conversations on this device.",
+        "loading": "Searching…",
+        "empty": "No matches",
+        "emptyAgents": "No matching agents",
+        "tabAll": "All",
+        "tabAgent": "Agent",
+        "tabChat": "Chat",
+        "tabCron": "Scheduled",
+        "groupToday": "Today",
+        "groupYesterday": "Yesterday"
+    },
     "gatewayNotRunning": "Gateway Not Running",
-    "gatewayRequired": "The OpenClaw Gateway needs to be running to use chat. It will start automatically, or you can start it from Settings.",
+    "gatewayRequired": "The 一码一世界 Gateway needs to be running to use chat. It will start automatically, or you can start it from Settings.",
     "welcome": {
-        "title": "ClawX Chat",
+        "title": "ClawNode Chat",
         "subtitle": "What can I do for you?",
         "askQuestions": "Handle Tasks",
         "askQuestionsDesc": "Work on task-oriented requests",
@@ -15,38 +31,49 @@
         "refresh": "Refresh chat",
         "showThinking": "Show thinking",
         "hideThinking": "Hide thinking",
-        "currentAgent": "Talking to {{agent}}"
+        "currentAgent": "Talking to {{agent}}",
+        "tokenUsed": "Used {{used}}",
+        "tokenHint": "Token usage from local session transcripts (no subscription quota API).",
+        "agentDetails": "Agent details",
+        "openSettings": "Settings",
+        "scheduledTask": "Scheduled task"
     },
-    "taskPanel": {
-        "eyebrow": "Run View",
-        "title": "Task Outline",
-        "emptyTitle": "No structured steps yet",
-        "emptyBody": "Once a run starts, ClawX will surface thinking, tool calls, and handoff states here.",
-        "status": {
-            "idle": "Idle",
-            "running_one": "1 active step",
-            "running_other": "{{count}} active steps"
-        },
-        "stepStatus": {
-            "running": "Running",
-            "completed": "Done",
-            "error": "Error"
-        }
+    "cronSession": {
+        "badge": "Scheduled",
+        "avatarHint": "This thread is a scheduled task run"
     },
-    "executionGraph": {
-        "eyebrow": "Conversation Run",
-        "title": "Execution Graph",
-        "status": {
-            "active": "Active",
-            "latest": "Latest",
-            "previous": "Previous"
-        },
-        "branchLabel": "branch",
-        "userTrigger": "User Trigger",
-        "userTriggerHint": "Triggered by the user message above",
-        "agentRun": "{{agent}} execution",
-        "agentReply": "Assistant Reply",
-        "agentReplyHint": "Resolved in the assistant reply below"
+    "agentEdit": {
+        "title": "Edit agent",
+        "nameRequired": "Name is required",
+        "saved": "Saved",
+        "nameLabel": "Agent name",
+        "taglineLabel": "One-liner",
+        "taglinePlaceholder": "Short subtitle",
+        "avatarLabel": "Avatar",
+        "avatarUploadSoon": "Custom upload is coming soon",
+        "cancel": "Cancel",
+        "save": "Save"
+    },
+    "agentDetails": {
+        "sheetTitle": "Agent details",
+        "collapse": "Collapse",
+        "editProfile": "Edit name & subtitle",
+        "personaSection": "Agent instructions",
+        "editPersona": "Edit instructions",
+        "personaPlaceholder": "Background, tone, and constraints…",
+        "cancel": "Cancel",
+        "save": "Save",
+        "personaSaved": "Instructions saved locally",
+        "personaEmpty": "Tap to add instructions (saved on this device only).",
+        "inspirationSection": "Inspiration",
+        "addInspiration": "+ Add inspiration",
+        "defaultTagline": "Assistant"
+    },
+    "addInspiration": {
+        "title": "Add inspiration",
+        "close": "Close",
+        "add": "Add",
+        "pinnedToast": "Added to your list"
     },
     "composer": {
         "attachFiles": "Attach files",
@@ -59,7 +86,49 @@
         "stop": "Stop",
         "gatewayConnected": "connected",
         "gatewayStatus": "gateway {{state}} | port: {{port}} {{pid}}",
-        "retryFailedAttachments": "Retry failed attachments"
+        "retryFailedAttachments": "Retry failed attachments",
+        "chrome": {
+            "inputPlaceholder": "Describe a task or ask anything",
+            "defaultModel": "Default model",
+            "modelPillCustomApi": "Custom model API",
+            "modelPillCodingPlan": "Coding Plan",
+            "modelDialogTitle": "Model settings",
+            "modelOptionDefault": "Default model",
+            "modelOptionCustomApi": "Custom model — Model API",
+            "modelOptionCodingPlan": "Custom model — Coding Plan",
+            "modelDisclaimer": "*Custom model configurations are optional; comply with applicable laws when using them.",
+            "modelCustomConfigHint": "Same as Settings → Models below: add or edit providers, keys, and models.",
+            "confirm": "Confirm",
+            "cancel": "Cancel",
+            "close": "Close",
+            "modelConfigure": "Choose & configure model…",
+            "modelQuickDefault": "Use default model",
+            "skills": "Skills",
+            "search": "Search",
+            "skillManagement": "Skill management",
+            "noSkills": "No installed skills",
+            "skillsNeedGateway": "Connect the gateway to load skills",
+            "skillsLoading": "Loading skills…",
+            "currentInspiration": "Current pick",
+            "findInspiration": "Ideas",
+            "cronSection": "Scheduled tasks",
+            "commonTasksSection": "Inspiration",
+            "cronNeedGateway": "Connect the gateway to load cron jobs",
+            "noCronJobs": "No scheduled tasks",
+            "inspirationCharity": "Charity & care",
+            "inspirationCharityBody": "Help me outline actionable charity ideas: who benefits, how to help, and how to communicate with heart.",
+            "inspirationStartup": "Startup support",
+            "inspirationStartupBody": "From resources, cold start, and risk control, give founders a practical checklist to move forward.",
+            "inspirationProduct": "Product excellence",
+            "inspirationProductBody": "Around positioning, core experience, and growth loops, list key questions and next validation steps for a strong product.",
+            "commonTools": "Tools",
+            "toolPortal": "Steward portal upkeep",
+            "toolPortalLine": "[Task] Steward portal: list homepage modules, announcements, and links to verify.",
+            "toolCommunity": "Private community care",
+            "toolCommunityLine": "[Task] Private groups: suggest today’s engagement topics and guardrails.",
+            "toolGreenProduct": "Green product concept",
+            "toolGreenProductLine": "[Task] Green product: draft notes on materials, packaging, and selling points."
+        }
     },
     "historyBuckets": {
         "today": "Today",

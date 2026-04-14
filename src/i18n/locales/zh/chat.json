@@ -1,8 +1,24 @@
 {
+    "search": {
+        "title": "搜索",
+        "placeholder": "搜索",
+        "close": "关闭",
+        "clear": "清除",
+        "hint": "输入关键词，搜索本机对话记录。",
+        "loading": "搜索中…",
+        "empty": "无匹配结果",
+        "emptyAgents": "没有匹配的 Agent",
+        "tabAll": "全部",
+        "tabAgent": "Agent",
+        "tabChat": "对话",
+        "tabCron": "定时任务",
+        "groupToday": "今天",
+        "groupYesterday": "昨天"
+    },
     "gatewayNotRunning": "网关未运行",
-    "gatewayRequired": "OpenClaw 网关需要运行才能使用聊天。它将自动启动，或者您可以从设置中启动。",
+    "gatewayRequired": "一码一世界 网关需要运行才能使用聊天。它将自动启动，或者您可以从设置中启动。",
     "welcome": {
-        "title": "ClawX 聊天",
+        "title": "ClawNode 聊天",
         "subtitle": "我能为你做些什么？",
         "askQuestions": "处理任务",
         "askQuestionsDesc": "处理面向任务的请求",
@@ -15,38 +31,49 @@
         "refresh": "刷新聊天",
         "showThinking": "显示思考过程",
         "hideThinking": "隐藏思考过程",
-        "currentAgent": "当前对话对象：{{agent}}"
+        "currentAgent": "当前对话对象：{{agent}}",
+        "tokenUsed": "已用{{used}}",
+        "tokenHint": "基于本地会话统计的 Token 用量（无套餐剩余接口）",
+        "agentDetails": "Agent 详情",
+        "openSettings": "设置",
+        "scheduledTask": "定时任务"
     },
-    "taskPanel": {
-        "eyebrow": "运行视图",
-        "title": "任务脉络",
-        "emptyTitle": "还没有结构化步骤",
-        "emptyBody": "当一次运行开始后，ClawX 会在这里展示思考、工具调用和收尾状态。",
-        "status": {
-            "idle": "空闲",
-            "running_one": "1 个活动步骤",
-            "running_other": "{{count}} 个活动步骤"
-        },
-        "stepStatus": {
-            "running": "进行中",
-            "completed": "完成",
-            "error": "错误"
-        }
+    "cronSession": {
+        "badge": "定时任务",
+        "avatarHint": "当前为定时任务会话"
     },
-    "executionGraph": {
-        "eyebrow": "对话执行",
-        "title": "执行关系图",
-        "status": {
-            "active": "执行中",
-            "latest": "最近一次",
-            "previous": "历史"
-        },
-        "branchLabel": "分支",
-        "userTrigger": "用户触发",
-        "userTriggerHint": "对应上方这条用户消息",
-        "agentRun": "{{agent}} 执行",
-        "agentReply": "助手回复",
-        "agentReplyHint": "结果体现在下方这条助手回复里"
+    "agentEdit": {
+        "title": "编辑 Agent 信息",
+        "nameRequired": "请填写名称",
+        "saved": "已保存",
+        "nameLabel": "Agent 名称",
+        "taglineLabel": "描述",
+        "taglinePlaceholder": "一句话介绍",
+        "avatarLabel": "头像",
+        "avatarUploadSoon": "自定义上传即将支持",
+        "cancel": "取消",
+        "save": "保存"
+    },
+    "agentDetails": {
+        "sheetTitle": "Agent 详情",
+        "collapse": "收起",
+        "editProfile": "编辑名称与描述",
+        "personaSection": "Agent 设定",
+        "editPersona": "编辑设定",
+        "personaPlaceholder": "背景、经历、风格等…",
+        "cancel": "取消",
+        "save": "保存",
+        "personaSaved": "已保存在本机",
+        "personaEmpty": "点击添加 Agent 设定（仅本机保存）",
+        "inspirationSection": "灵感",
+        "addInspiration": "+ 添加灵感",
+        "defaultTagline": "助手"
+    },
+    "addInspiration": {
+        "title": "添加灵感",
+        "close": "关闭",
+        "add": "添加",
+        "pinnedToast": "已加入列表"
     },
     "composer": {
         "attachFiles": "添加文件",
@@ -59,7 +86,49 @@
         "stop": "停止",
         "gatewayConnected": "已连接",
         "gatewayStatus": "gateway {{state}} | port: {{port}} {{pid}}",
-        "retryFailedAttachments": "重试失败的附件"
+        "retryFailedAttachments": "重试失败的附件",
+        "chrome": {
+            "inputPlaceholder": "可以描述任务或提问任何问题",
+            "defaultModel": "默认大模型",
+            "modelPillCustomApi": "自定义模型 API",
+            "modelPillCodingPlan": "Coding Plan",
+            "modelDialogTitle": "大模型设置",
+            "modelOptionDefault": "默认大模型",
+            "modelOptionCustomApi": "自定义大模型—模型 API",
+            "modelOptionCodingPlan": "自定义大模型—Coding Plan",
+            "modelDisclaimer": "*可选用自定义大模型配置，使用时请遵循相关法律法规",
+            "modelCustomConfigHint": "下方与「设置 → 模型」中相同：可添加/编辑提供商、密钥与模型。",
+            "confirm": "确认",
+            "cancel": "取消",
+            "close": "关闭",
+            "modelConfigure": "模型选择与配置…",
+            "modelQuickDefault": "使用默认大模型",
+            "skills": "技能",
+            "search": "搜索",
+            "skillManagement": "技能管理",
+            "noSkills": "暂无已安装技能",
+            "skillsNeedGateway": "请先连接网关以加载技能列表",
+            "skillsLoading": "正在加载技能…",
+            "currentInspiration": "当前灵感",
+            "findInspiration": "找灵感",
+            "cronSection": "定时任务",
+            "commonTasksSection": "灵感",
+            "cronNeedGateway": "连接网关后可查看定时任务",
+            "noCronJobs": "暂无定时任务",
+            "inspirationCharity": "公益爱心",
+            "inspirationCharityBody": "围绕公益与爱心主题，帮我梳理可落地的行动方向、受益群体与传播要点。",
+            "inspirationStartup": "帮扶创业",
+            "inspirationStartupBody": "从资源对接、冷启动与风险规避等角度，给创业者一份可执行的帮扶思路清单。",
+            "inspirationProduct": "成就产品",
+            "inspirationProductBody": "围绕产品定位、核心体验与增长闭环，帮我整理一版成就好产品的关键问题与下一步验证建议。",
+            "commonTools": "常用工具",
+            "toolPortal": "主理人门户维护",
+            "toolPortalLine": "【任务】主理人门户维护：请列出需要检查的首页模块、公告与链接有效性。",
+            "toolCommunity": "私域群维护",
+            "toolCommunityLine": "【任务】私域群维护：请给出今日群内互动话题建议与注意事项。",
+            "toolGreenProduct": "绿色产品方案",
+            "toolGreenProductLine": "【任务】绿色产品方案：请从可持续材料、包装与卖点三方面给出草案要点。"
+        }
     },
     "historyBuckets": {
         "today": "今天",

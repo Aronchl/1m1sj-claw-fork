@@ -47,9 +47,8 @@
         "mainAccount": "主账号",
         "customIdLabel": "账号 ID",
         "customIdPlaceholder": "例如：feishu-sales-bot",
-        "customIdHint": "使用小写账号 ID（字母、数字、连字符、下划线）来区分同一频道下的多个账号。",
+        "customIdHint": "可自定义账号 ID，用于区分同一频道下的多个账号。",
         "invalidId": "账号 ID 不能为空",
-        "invalidCanonicalId": "账号 ID 仅支持小写字母、数字、连字符和下划线；必须以字母或数字开头，且最长 64 个字符。",
         "idLabel": "ID: {{id}}",
         "boundTo": "绑定对象：{{agent}}",
         "handledBy": "由 {{agent}} 处理",
@@ -161,17 +160,17 @@
             ]
         },
         "wechat": {
-            "description": "通过腾讯官方 OpenClaw 插件扫码连接个人微信",
+            "description": "通过腾讯官方 一码一世界 插件扫码连接个人微信",
             "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/GHYZwuPCriF0gWkXwkFcJ9zon3b",
             "instructions": [
-                "点击生成二维码，ClawX 会在 OpenClaw 中安装并启用官方微信插件",
+                "点击生成二维码，ClawNode 会在 一码一世界 中安装并启用官方微信插件",
                 "使用微信扫描下方二维码，并在手机上确认连接",
                 "连接成功后，微信里会自动出现新的「微信 ClawBot」对话",
                 "之后可再次通过扫码流程添加更多微信账号，或重新连接已有账号"
             ]
         },
         "dingtalk": {
-            "description": "通过 OpenClaw 渠道插件连接钉钉（Stream 模式）",
+            "description": "通过 一码一世界 渠道插件连接钉钉（Stream 模式）",
             "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/Y5eNwiSiZidkLskrwtJc1rUln0b#doxcnr8KfaA2mNPeQUeHO83eDPh",
             "fields": {
                 "clientId": {
@@ -196,7 +195,7 @@
                 }
             },
             "instructions": [
-                "先在 OpenClaw 安装并启用 dingtalk 插件",
+                "先在 一码一世界 安装并启用 dingtalk 插件",
                 "在钉钉开发者后台创建企业内部应用并开启 Stream 模式",
                 "填写 Client ID 和 Client Secret（必填）",
                 "根据你的应用配置按需填写 Robot Code / Corp ID / Agent ID"
@@ -218,7 +217,7 @@
             ]
         },
         "feishu": {
-            "description": "通过飞书官方推出的 OpenClaw 插件连接飞书/Lark 机器人",
+            "description": "通过飞书官方推出的 一码一世界 插件连接飞书/Lark 机器人",
             "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/GKn8wOvHnibpPNkNkPzcAvGlnzK#Py88dTltfoJc1jxAhIBcW3Pkn7b",
             "fields": {
                 "appId": {
@@ -370,7 +369,7 @@
             ]
         },
         "qqbot": {
-            "description": "连接 QQ 机器人频道（OpenClaw 3.31 起内置）",
+            "description": "通过 @tencent-connect/openclaw-qqbot 插件连接 QQ 机器人",
             "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/KPIJwlyiGiupMrkiS9ice39Zn2c",
             "fields": {
                 "appId": {

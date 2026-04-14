@@ -1,11 +1,12 @@
 const MULTI_INSTANCE_PROVIDER_TYPES = new Set(['custom', 'ollama']);
 
 export const OPENCLAW_PROVIDER_KEY_MINIMAX = 'minimax-portal';
+export const OPENCLAW_PROVIDER_KEY_QWEN = 'qwen-portal';
 export const OPENCLAW_PROVIDER_KEY_MOONSHOT = 'moonshot';
-export const OPENCLAW_PROVIDER_KEY_MOONSHOT_GLOBAL = 'moonshot-global';
-export const OAUTH_PROVIDER_TYPES = ['minimax-portal', 'minimax-portal-cn'] as const;
+export const OAUTH_PROVIDER_TYPES = ['qwen-portal', 'minimax-portal', 'minimax-portal-cn'] as const;
 export const OPENCLAW_OAUTH_PLUGIN_PROVIDER_KEYS = [
   OPENCLAW_PROVIDER_KEY_MINIMAX,
+  OPENCLAW_PROVIDER_KEY_QWEN,
 ] as const;
 
 const OAUTH_PROVIDER_TYPE_SET = new Set<string>(OAUTH_PROVIDER_TYPES);
@@ -53,24 +54,27 @@ export function isMiniMaxProviderType(type: string): boolean {
 
 export function getOAuthProviderTargetKey(type: string): string | undefined {
   if (!isOAuthProviderType(type)) return undefined;
-  return OPENCLAW_PROVIDER_KEY_MINIMAX;
+  return isMiniMaxProviderType(type) ? OPENCLAW_PROVIDER_KEY_MINIMAX : OPENCLAW_PROVIDER_KEY_QWEN;
 }
 
-export function getOAuthProviderApi(type: string): 'anthropic-messages' | undefined {
+export function getOAuthProviderApi(type: string): 'anthropic-messages' | 'openai-completions' | undefined {
   if (!isOAuthProviderType(type)) return undefined;
-  return 'anthropic-messages';
+  return isMiniMaxProviderType(type) ? 'anthropic-messages' : 'openai-completions';
 }
 
 export function getOAuthProviderDefaultBaseUrl(type: string): string | undefined {
   if (!isOAuthProviderType(type)) return undefined;
   if (type === OPENCLAW_PROVIDER_KEY_MINIMAX) return 'https://api.minimax.io/anthropic';
   if (type === 'minimax-portal-cn') return 'https://api.minimaxi.com/anthropic';
-  return undefined;
+  return 'https://portal.qwen.ai/v1';
 }
 
-export function normalizeOAuthBaseUrl(_type: string, baseUrl?: string): string | undefined {
+export function normalizeOAuthBaseUrl(type: string, baseUrl?: string): string | undefined {
   if (!baseUrl) return undefined;
-  return baseUrl.replace(/\/v1$/, '').replace(/\/anthropic$/, '').replace(/\/$/, '') + '/anthropic';
+  if (isMiniMaxProviderType(type)) {
+    return baseUrl.replace(/\/v1$/, '').replace(/\/anthropic$/, '').replace(/\/$/, '') + '/anthropic';
+  }
+  return baseUrl;
 }
 
 export function usesOAuthAuthHeader(providerKey: string): boolean {
@@ -79,6 +83,7 @@ export function usesOAuthAuthHeader(providerKey: string): boolean {
 
 export function getOAuthApiKeyEnv(providerKey: string): string | undefined {
   if (providerKey === OPENCLAW_PROVIDER_KEY_MINIMAX) return 'minimax-oauth';
+  if (providerKey === OPENCLAW_PROVIDER_KEY_QWEN) return 'qwen-oauth';
   return undefined;
 }
 

@@ -5,7 +5,7 @@
  *
  * All file I/O uses async fs/promises to avoid blocking the main thread.
  */
-import { readFile, writeFile, access, mkdir } from 'fs/promises';
+import { readFile, writeFile, access, mkdir, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { constants } from 'fs';
 import { join } from 'path';
@@ -314,7 +314,11 @@ async function tryReadMarker(markerPath: string): Promise<PreinstalledMarker | n
  * - If skill is missing locally, install it.
  * - If local skill exists without our marker, treat as user-managed and never overwrite.
  * - If marker exists with same version, skip.
- * - If marker exists with a different version, skip by default to avoid overwriting edits.
+ * - If marker exists with a different version, overwrite (strong coverage).
+ *
+ * Notes on "strong coverage":
+ * - We only overwrite when the installed skill has ClawX preinstalled marker.
+ * - If the skill exists locally but has no marker, it is treated as user-managed and will not be overwritten.
  */
 export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
     const skills = await readPreinstalledManifest();
@@ -351,14 +355,17 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
 
         if (existsSync(targetManifest)) {
             if (!marker) {
+                // User-managed skill (no ClawX marker). Never overwrite to avoid data loss.
                 logger.info(`Skipping user-managed skill: ${spec.slug}`);
                 continue;
             }
             if (marker.version === desiredVersion) {
                 continue;
             }
-            logger.info(`Skipping preinstalled skill update for ${spec.slug} (local marker version=${marker.version}, desired=${desiredVersion})`);
-            continue;
+
+            // Strong overwrite: remove targetDir entirely and re-copy from bundled resources.
+            logger.info(`Strong-overwriting preinstalled skill: ${spec.slug} (local marker version=${marker.version}, desired=${desiredVersion})`);
+            await rm(targetDir, { recursive: true, force: true });
         }
 
         try {

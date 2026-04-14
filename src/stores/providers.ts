@@ -9,7 +9,6 @@ import type {
   ProviderVendorInfo,
   ProviderWithKeyInfo,
 } from '@/lib/providers';
-import { normalizeProviderApiKeyInput } from '@/lib/providers';
 import { hostApiFetch } from '@/lib/host-api';
 import {
   fetchProviderSnapshot,
@@ -327,10 +326,9 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   
   validateAccountApiKey: async (providerId, apiKey, options) => {
     try {
-      const normalizedApiKey = normalizeProviderApiKeyInput(apiKey);
       const result = await hostApiFetch<{ valid: boolean; error?: string }>('/api/providers/validate', {
         method: 'POST',
-        body: JSON.stringify({ providerId, apiKey: normalizedApiKey, options }),
+        body: JSON.stringify({ providerId, apiKey, options }),
       });
       return result;
     } catch (error) {

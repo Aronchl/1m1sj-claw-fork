@@ -1,10 +1,9 @@
-import { access, copyFile, mkdir, readdir, rm } from 'fs/promises';
+import { access, copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises';
 import { constants } from 'fs';
 import { join, normalize } from 'path';
 import { deleteAgentChannelAccounts, listConfiguredChannels, readOpenClawConfig, writeOpenClawConfig } from './channel-config';
-import type { OpenClawConfig } from './channel-config';
 import { withConfigLock } from './config-mutex';
-import { expandPath, getOpenClawConfigDir } from './paths';
+import { expandPath, getOpenClawConfigDir, getResourcesDir } from './paths';
 import * as logger from './logger';
 import { toUiChannelType } from './channel-alias';
 
@@ -25,6 +24,34 @@ const AGENT_RUNTIME_FILES = [
   'auth-profiles.json',
   'models.json',
 ];
+const PREINSTALLED_AGENTS_MANIFEST_NAME = 'preinstalled-manifest.json';
+const PREINSTALLED_AGENTS_LOCK_NAME = '.clawx-preinstalled-agents.json';
+
+interface PreinstalledAgentSpec {
+  id: string;
+  name?: string;
+  workspace?: string;
+  agentDir?: string;
+  modelRef?: string | null;
+  inheritWorkspace?: boolean;
+  channels?: string[];
+  default?: boolean;
+  version?: string;
+}
+
+interface PreinstalledAgentsManifest {
+  agents?: PreinstalledAgentSpec[];
+}
+
+interface PreinstalledAgentLockEntry {
+  id: string;
+  version: string;
+  installedAt: string;
+}
+
+interface PreinstalledAgentLockFile {
+  agents?: PreinstalledAgentLockEntry[];
+}
 
 interface AgentModelConfig {
   primary?: string;
@@ -81,6 +108,8 @@ export interface AgentSummary {
   id: string;
   name: string;
   isDefault: boolean;
+  /** Bundled manifest agents (resources/agents/preinstalled-manifest.json); not user-removable. */
+  isPreinstalled: boolean;
   modelDisplay: string;
   modelRef: string | null;
   overrideModelRef: string | null;
@@ -139,9 +168,13 @@ function slugifyAgentId(name: string): string {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 
-  if (!normalized || /^\d+$/.test(normalized)) return 'agent';
+  if (!normalized) return 'agent';
   if (normalized === MAIN_AGENT_ID) return 'agent';
   return normalized;
+}
+
+function normalizePreinstalledAgentId(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 async function fileExists(path: string): Promise<boolean> {
@@ -280,33 +313,29 @@ function upsertBindingsForChannel(
   agentId: string | null,
   accountId?: string,
 ): BindingConfig[] | undefined {
-  const normalizedAccountId = accountId?.trim() || '';
+  const normalizedAgentId = agentId ? normalizeAgentIdForBinding(agentId) : '';
   const nextBindings = Array.isArray(bindings)
     ? [...bindings as BindingConfig[]].filter((binding) => {
       if (!isChannelBinding(binding)) return true;
       if (binding.match?.channel !== channelType) return true;
-
-      const bindingAccountId = typeof binding.match?.accountId === 'string'
-        ? binding.match.accountId.trim()
-        : '';
-
-      // Account-scoped updates must only replace the exact account owner.
-      // Otherwise rebinding one Feishu/Lark account can silently drop a
-      // sibling account binding on the same agent, which looks like routing
-      // or model config "drift" in multi-account setups.
-      if (normalizedAccountId) {
-        return bindingAccountId !== normalizedAccountId;
+      // Keep a single account binding per (agent, channelType). Rebinding to
+      // another account should replace the previous one.
+      if (normalizedAgentId && normalizeAgentIdForBinding(binding.agentId || '') === normalizedAgentId) {
+        return false;
       }
-
+      // Only remove binding that matches the exact accountId scope
+      if (accountId) {
+        return binding.match?.accountId !== accountId;
+      }
       // No accountId: remove channel-wide binding (legacy)
-      return Boolean(bindingAccountId);
+      return Boolean(binding.match?.accountId);
     })
     : [];
 
   if (agentId) {
     const match: BindingMatch = { channel: channelType };
-    if (normalizedAccountId) {
-      match.accountId = normalizedAccountId;
+    if (accountId) {
+      match.accountId = accountId;
     }
     nextBindings.push({ agentId, match });
   }
@@ -455,9 +484,10 @@ function listConfiguredAccountIdsForChannel(config: AgentConfigDocument, channel
     });
 }
 
-async function buildSnapshotFromConfig(config: AgentConfigDocument, preloadedChannels?: string[]): Promise<AgentsSnapshot> {
+async function buildSnapshotFromConfig(config: AgentConfigDocument): Promise<AgentsSnapshot> {
   const { entries, defaultAgentId } = normalizeAgentsConfig(config);
-  const configuredChannels = preloadedChannels ?? await listConfiguredChannels();
+  const bundledPreinstalledIds = await getBundledPreinstalledAgentIdSet();
+  const configuredChannels = await listConfiguredChannels();
   const { channelToAgent, accountToAgent } = getChannelBindingMap(config.bindings);
   const defaultAgentIdNorm = normalizeAgentIdForBinding(defaultAgentId);
   const channelOwners: Record<string, string> = {};
@@ -516,6 +546,7 @@ async function buildSnapshotFromConfig(config: AgentConfigDocument, preloadedCha
       id: entry.id,
       name: entry.name || (entry.id === MAIN_AGENT_ID ? MAIN_AGENT_NAME : entry.id),
       isDefault: entry.id === defaultAgentId,
+      isPreinstalled: bundledPreinstalledIds.has(normalizePreinstalledAgentId(entry.id)),
       modelDisplay: modelLabel,
       modelRef: explicitModelRef || defaultModelRef || null,
       overrideModelRef: explicitModelRef,
@@ -542,10 +573,6 @@ async function buildSnapshotFromConfig(config: AgentConfigDocument, preloadedCha
 export async function listAgentsSnapshot(): Promise<AgentsSnapshot> {
   const config = await readOpenClawConfig() as AgentConfigDocument;
   return buildSnapshotFromConfig(config);
-}
-
-export async function listAgentsSnapshotFromConfig(config: OpenClawConfig, configuredChannels?: string[]): Promise<AgentsSnapshot> {
-  return buildSnapshotFromConfig(config as AgentConfigDocument, configuredChannels);
 }
 
 export async function listConfiguredAgentIds(): Promise<string[]> {
@@ -668,6 +695,11 @@ export async function deleteAgentConfig(agentId: string): Promise<{ snapshot: Ag
       throw new Error('The main agent cannot be deleted');
     }
 
+    const bundledPreinstalledIds = await getBundledPreinstalledAgentIdSet();
+    if (bundledPreinstalledIds.has(normalizePreinstalledAgentId(agentId))) {
+      throw new Error('Preinstalled agents cannot be deleted');
+    }
+
     const config = await readOpenClawConfig() as AgentConfigDocument;
     const { agentsConfig, entries, defaultAgentId } = normalizeAgentsConfig(config);
     const snapshotBeforeDeletion = await buildSnapshotFromConfig(config);
@@ -779,5 +811,269 @@ export async function clearAllBindingsForChannel(channelType: string): Promise<v
     config.bindings = nextBindings.length > 0 ? nextBindings : undefined;
     await writeOpenClawConfig(config);
     logger.info('Cleared all bindings for channel', { channelType });
+  });
+}
+
+/**
+ * Bundled workspace templates for preinstalled agents: copy all `*.md` in this
+ * directory onto the agent workspace root whenever the preinstall flow runs for
+ * a new or version-bumped managed agent (overwrites existing same-named files).
+ * Chats live under ~/.openclaw/agents/<id>/sessions and are never touched.
+ *
+ * Resolution order matches the preinstall manifest (packaged resources, then dev cwd).
+ */
+async function resolvePreinstalledAgentWorkspaceTemplateDir(agentId: string): Promise<string | null> {
+  const normalized = normalizePreinstalledAgentId(agentId);
+  if (!normalized) return null;
+  const candidates = [
+    join(getResourcesDir(), 'agents', normalized, 'workspace'),
+    join(process.cwd(), 'resources', 'agents', normalized, 'workspace'),
+  ];
+  for (const dir of candidates) {
+    if (await fileExists(dir)) {
+      return dir;
+    }
+  }
+  return null;
+}
+
+async function syncPreinstalledAgentWorkspaceTemplates(entry: AgentListEntry): Promise<void> {
+  const templateRoot = await resolvePreinstalledAgentWorkspaceTemplateDir(entry.id);
+  if (!templateRoot) return;
+
+  const targetWorkspace = expandPath(entry.workspace || `~/.openclaw/workspace-${entry.id}`);
+  await ensureDir(targetWorkspace);
+
+  let copied = 0;
+  const names = await readdir(templateRoot);
+  for (const name of names) {
+    if (!name.endsWith('.md') || name.startsWith('.')) continue;
+    const source = join(templateRoot, name);
+    let isFile = false;
+    try {
+      isFile = (await stat(source)).isFile();
+    } catch {
+      continue;
+    }
+    if (!isFile) continue;
+    const target = join(targetWorkspace, name);
+    await copyFile(source, target);
+    copied += 1;
+  }
+
+  if (copied > 0) {
+    logger.info('Synced preinstalled agent workspace templates', { agentId: entry.id, copied });
+  }
+}
+
+async function getBundledPreinstalledAgentIdSet(): Promise<Set<string>> {
+  const specs = await readPreinstalledAgentsManifest();
+  const ids = new Set<string>();
+  for (const spec of specs) {
+    const id = normalizePreinstalledAgentId(spec.id);
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+async function readPreinstalledAgentsManifest(): Promise<PreinstalledAgentSpec[]> {
+  const candidates = [
+    join(getResourcesDir(), 'agents', PREINSTALLED_AGENTS_MANIFEST_NAME),
+    join(process.cwd(), 'resources', 'agents', PREINSTALLED_AGENTS_MANIFEST_NAME),
+  ];
+  let manifestPath: string | null = null;
+  for (const candidate of candidates) {
+    if (await fileExists(candidate)) {
+      manifestPath = candidate;
+      break;
+    }
+  }
+  if (!manifestPath) return [];
+  try {
+    const raw = await readFile(manifestPath, 'utf-8');
+    const parsed = JSON.parse(raw) as PreinstalledAgentsManifest;
+    if (!Array.isArray(parsed.agents)) return [];
+    return parsed.agents.filter((entry): entry is PreinstalledAgentSpec => (
+      Boolean(entry)
+      && typeof entry === 'object'
+      && typeof entry.id === 'string'
+      && entry.id.trim().length > 0
+    ));
+  } catch (error) {
+    logger.warn('Failed to read preinstalled agents manifest', { error: String(error) });
+    return [];
+  }
+}
+
+function resolvePreinstalledAgentsLockPath(): string {
+  return join(getOpenClawConfigDir(), PREINSTALLED_AGENTS_LOCK_NAME);
+}
+
+async function readPreinstalledAgentsLock(): Promise<Map<string, PreinstalledAgentLockEntry>> {
+  const lockPath = resolvePreinstalledAgentsLockPath();
+  if (!(await fileExists(lockPath))) return new Map();
+  try {
+    const raw = await readFile(lockPath, 'utf-8');
+    const parsed = JSON.parse(raw) as PreinstalledAgentLockFile;
+    const map = new Map<string, PreinstalledAgentLockEntry>();
+    for (const entry of parsed.agents ?? []) {
+      const id = normalizePreinstalledAgentId(entry.id ?? '');
+      const version = entry.version?.trim();
+      if (!id || !version) continue;
+      map.set(id, {
+        id,
+        version,
+        installedAt: typeof entry.installedAt === 'string' && entry.installedAt.trim()
+          ? entry.installedAt
+          : new Date().toISOString(),
+      });
+    }
+    return map;
+  } catch (error) {
+    logger.warn('Failed to read preinstalled agents lock file', { error: String(error) });
+    return new Map();
+  }
+}
+
+async function writePreinstalledAgentsLock(entries: Map<string, PreinstalledAgentLockEntry>): Promise<void> {
+  const lockPath = resolvePreinstalledAgentsLockPath();
+  const payload: PreinstalledAgentLockFile = {
+    agents: [...entries.values()].sort((a, b) => a.id.localeCompare(b.id)),
+  };
+  await writeFile(lockPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf-8');
+}
+
+function resolvePreinstalledAgentVersion(spec: PreinstalledAgentSpec): string {
+  const explicit = typeof spec.version === 'string' ? spec.version.trim() : '';
+  return explicit || '1';
+}
+
+function applyPreinstalledAgentFields(entry: AgentListEntry, spec: PreinstalledAgentSpec): AgentListEntry {
+  const nextEntry: AgentListEntry = { ...entry };
+  if (spec.name && spec.name.trim()) nextEntry.name = spec.name.trim();
+  if (spec.workspace && spec.workspace.trim()) nextEntry.workspace = spec.workspace.trim();
+  if (spec.agentDir && spec.agentDir.trim()) nextEntry.agentDir = spec.agentDir.trim();
+  if (spec.modelRef !== undefined) {
+    const modelRef = typeof spec.modelRef === 'string' ? spec.modelRef.trim() : '';
+    if (!modelRef) {
+      delete nextEntry.model;
+    } else if (isValidModelRef(modelRef)) {
+      nextEntry.model = { primary: modelRef };
+    } else {
+      logger.warn('Ignoring invalid preinstalled agent modelRef', { id: spec.id, modelRef: spec.modelRef });
+    }
+  }
+  return nextEntry;
+}
+
+export async function ensurePreinstalledAgentsInstalled(): Promise<void> {
+  const specs = await readPreinstalledAgentsManifest();
+  if (specs.length === 0) return;
+
+  await withConfigLock(async () => {
+    const config = await readOpenClawConfig() as AgentConfigDocument;
+    const lockEntries = await readPreinstalledAgentsLock();
+    const normalizedSpecs = new Map<string, PreinstalledAgentSpec>();
+    for (const spec of specs) {
+      const normalizedId = normalizePreinstalledAgentId(spec.id);
+      if (!normalizedId) continue;
+      normalizedSpecs.set(normalizedId, { ...spec, id: normalizedId });
+    }
+
+    const { agentsConfig, entries } = normalizeAgentsConfig(config);
+    let changed = false;
+    let lockChanged = false;
+    const nowIso = new Date().toISOString();
+
+    for (const spec of normalizedSpecs.values()) {
+      if (!/^[a-z0-9-]+$/.test(spec.id)) {
+        logger.warn('Skipping invalid preinstalled agent id', { id: spec.id });
+        continue;
+      }
+      if (spec.id === MAIN_AGENT_ID) {
+        logger.warn('Skipping preinstalled agent with reserved id "main"');
+        continue;
+      }
+
+      const desiredVersion = resolvePreinstalledAgentVersion(spec);
+      const lockInfo = lockEntries.get(spec.id);
+      const existingIndex = entries.findIndex((entry) => normalizePreinstalledAgentId(entry.id) === spec.id);
+
+      // Existing agent without marker is user-managed; never overwrite.
+      if (existingIndex >= 0 && !lockInfo) {
+        logger.info('Skipping user-managed preinstalled agent', { id: spec.id });
+        continue;
+      }
+      // Existing managed agent at same version: no-op.
+      if (existingIndex >= 0 && lockInfo?.version === desiredVersion) {
+        continue;
+      }
+
+      if (existingIndex >= 0) {
+        const updated = applyPreinstalledAgentFields(entries[existingIndex], spec);
+        entries[existingIndex] = updated;
+        await provisionAgentFilesystem(config, updated, { inheritWorkspace: spec.inheritWorkspace });
+        await syncPreinstalledAgentWorkspaceTemplates(updated);
+        changed = true;
+      } else {
+        const base: AgentListEntry = {
+          id: spec.id,
+          name: spec.name?.trim() || spec.id,
+          workspace: spec.workspace?.trim() || `~/.openclaw/workspace-${spec.id}`,
+          agentDir: spec.agentDir?.trim() || getDefaultAgentDirPath(spec.id),
+        };
+        const next = applyPreinstalledAgentFields(base, spec);
+        entries.push(next);
+        await provisionAgentFilesystem(config, next, { inheritWorkspace: spec.inheritWorkspace });
+        await syncPreinstalledAgentWorkspaceTemplates(next);
+        changed = true;
+      }
+
+      // Optional channel binding bootstrap
+      for (const channelTypeRaw of spec.channels ?? []) {
+        const channelType = typeof channelTypeRaw === 'string' ? channelTypeRaw.trim() : '';
+        if (!channelType) continue;
+        config.bindings = upsertBindingsForChannel(
+          config.bindings,
+          channelType,
+          spec.id,
+          resolveAccountIdForAgent(spec.id),
+        );
+        changed = true;
+      }
+
+      lockEntries.set(spec.id, {
+        id: spec.id,
+        version: desiredVersion,
+        installedAt: nowIso,
+      });
+      lockChanged = true;
+    }
+
+    if (normalizedSpecs.size > 0 && [...normalizedSpecs.values()].some((spec) => spec.default === true)) {
+      const preferred = [...normalizedSpecs.values()].find((spec) => spec.default === true);
+      if (preferred) {
+        const preferredId = preferred.id;
+        for (let i = 0; i < entries.length; i++) {
+          const shouldDefault = normalizePreinstalledAgentId(entries[i].id) === preferredId;
+          if (entries[i].default !== shouldDefault) {
+            entries[i] = { ...entries[i], default: shouldDefault };
+            changed = true;
+          }
+        }
+      }
+    }
+
+    if (changed) {
+      config.agents = {
+        ...agentsConfig,
+        list: entries,
+      };
+      await writeOpenClawConfig(config);
+      logger.info('Ensured preinstalled agents from manifest', { count: normalizedSpecs.size });
+    }
+    if (lockChanged) {
+      await writePreinstalledAgentsLock(lockEntries);
+    }
   });
 }

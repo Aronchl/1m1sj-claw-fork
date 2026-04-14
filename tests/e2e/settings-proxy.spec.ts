@@ -21,7 +21,9 @@ test.describe('ClawX developer proxy settings', () => {
     await completeSetup(page);
 
     await page.getByTestId('sidebar-nav-settings').click();
+    await expect(page.getByTestId('settings-modal')).toBeVisible();
     await expect(page.getByTestId('settings-page')).toBeVisible();
+    await page.getByTestId('settings-modal-nav-app').click();
 
     const devModeToggle = page.getByTestId('settings-dev-mode-switch');
     await expect(devModeToggle).toBeVisible();

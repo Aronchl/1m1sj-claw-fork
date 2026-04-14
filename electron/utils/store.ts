@@ -56,6 +56,12 @@ export interface AppSettings {
   selectedBundles: string[];
   enabledSkills: string[];
   disabledSkills: string[];
+
+  // Desktop auth session
+  desktopAuthToken: string;
+  desktopAuthUserId: string;
+  desktopAuthNickName: string;
+  desktopAuthAvatarUrl: string;
 }
 
 /**
@@ -107,6 +113,12 @@ function createDefaultSettings(): AppSettings {
     selectedBundles: ['productivity', 'developer'],
     enabledSkills: [],
     disabledSkills: [],
+
+    // Desktop auth session
+    desktopAuthToken: '',
+    desktopAuthUserId: '',
+    desktopAuthNickName: '',
+    desktopAuthAvatarUrl: '',
   };
 }
 

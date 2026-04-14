@@ -10,19 +10,29 @@
     "modelLine": "Model: {{model}}{{suffix}}",
     "channelsLine": "Channels: {{channels}}",
     "deleteAgent": "Delete Agent",
+    "moreMenu": "More",
     "settings": "Settings",
     "creating": "Creating...",
     "createDialog": {
         "title": "Add Agent",
-        "description": "Create a new agent by name. You can optionally inherit the main agent's workspace bootstrap files.",
+        "description": "Set a name, one-liner, avatar, and instructions. Workspace inheritance is optional.",
         "nameLabel": "Agent Name",
         "namePlaceholder": "Coding Helper",
+        "taglineLabel": "One-liner",
+        "taglinePlaceholder": "A warm, patient guide",
+        "avatarLabel": "Avatar",
+        "avatarUploadSoon": "Custom upload is coming soon",
+        "personaLabel": "Agent instructions",
+        "personaPlaceholder": "Background and style (experience, tone, boundaries)…",
+        "defaultTagline": "A warm, patient campus guide",
+        "defaultPersona": "Experience: University counselor supporting 184 students. Praised by the dean in year one for strong responsibility; students call you \"Lin\" with fondness. Patient and caring with everyone.\nStyle: Warm and steady; gentle with every topic. Patient, empathetic, attuned to your mood. Clear-sighted about what lies beneath the surface.",
         "inheritWorkspaceLabel": "Inherit main agent workspace",
         "inheritWorkspaceDescription": "Copy SOUL.md, AGENTS.md, etc. from the main agent"
     },
     "deleteDialog": {
         "title": "Delete Agent",
-        "message": "Delete \"{{name}}\" from ClawX? This permanently deletes the agent and its ClawX-managed workspace, runtime, and session files from disk."
+        "message": "Delete \"{{name}}\" from ClawNode? This permanently deletes the agent and its ClawNode-managed workspace, runtime, and session files from disk.",
+        "deleting": "Deleting…"
     },
     "settingsDialog": {
         "title": "{{name}} Settings",
@@ -53,7 +63,7 @@
     },
     "removeChannelDialog": {
         "title": "Remove Channel",
-        "message": "Remove {{name}} from ClawX? This deletes the current channel configuration."
+        "message": "Remove {{name}} from ClawNode? This deletes the current channel configuration."
     },
     "toast": {
         "agentCreated": "Agent created",

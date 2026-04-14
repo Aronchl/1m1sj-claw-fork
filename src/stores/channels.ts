@@ -80,7 +80,7 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
             } | null;
           }>>;
           channelDefaultAccountId?: Record<string, string>;
-      }>('channels.status', { probe: false });
+      }>('channels.status', { probe: true });
       if (data) {
         const channels: Channel[] = [];
 

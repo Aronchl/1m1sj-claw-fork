@@ -1,5 +1,17 @@
 {
     "sidebar": {
+        "brand": "ClawNode",
+        "brandTagline": "Your AI assistant for getting things done—anytime.",
+        "railChat": "Chat",
+        "railInspiration": "Inspire",
+        "railGrowth": "Grow",
+        "railTasks": "Tasks",
+        "railHelp": "Help",
+        "railMobile": "Mobile",
+        "chatSearchPlaceholder": "Search",
+        "newAgent": "New Agent",
+        "newChatForAgent": "New chat under this agent",
+        "noSessionsUnderAgent": "No chats yet — tap + to start",
         "chat": "Chat",
         "newChat": "New Chat",
         "cronTasks": "Cron Tasks",
@@ -11,7 +23,16 @@
         "devConsole": "Developer Console",
         "models": "Models",
         "deleteSessionConfirm": "Are you sure you want to delete session \"{{label}}\"?",
-        "openClawPage": "OpenClaw Page"
+        "openClawPage": "一码一世界 Page",
+        "loadMoreSessions": "Load more",
+        "viewMoreSessions": "View more",
+        "sessionHistoryTitle": "Chats — {{name}}",
+        "sessionHistorySearchPlaceholder": "Search chats…",
+        "sessionHistoryFilterAll": "All",
+        "sessionHistoryFilterDay": "Last 24 hours",
+        "sessionHistoryFilterWeek": "Last 7 days",
+        "sessionHistoryLoadMore": "Load more",
+        "sessionHistoryEmptyFiltered": "No chats match your filters."
     },
     "actions": {
         "save": "Save",
@@ -53,7 +74,7 @@
     },
     "gateway": {
         "notRunning": "Gateway Not Running",
-        "notRunningDesc": "The OpenClaw Gateway needs to be running to use this feature. It will start automatically, or you can start it from Settings.",
+        "notRunningDesc": "The 一码一世界 Gateway needs to be running to use this feature. It will start automatically, or you can start it from Settings.",
         "warning": "Gateway is not running."
     }
 }

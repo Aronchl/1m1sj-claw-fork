@@ -1,110 +1,52 @@
 /**
- * Sidebar Component
- * Navigation sidebar with menu items.
- * No longer fixed - sits inside the flex layout below the title bar.
+ * Sidebar: narrow rail + optional chat expansion panel (matches product design).
  */
-import { useEffect, useMemo, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useSettingsUiStore } from '@/stores/settings-ui';
 import {
-  Network,
-  Bot,
-  Puzzle,
-  Clock,
   Settings as SettingsIcon,
-  PanelLeftClose,
-  PanelLeft,
-  Plus,
-  Terminal,
-  ExternalLink,
   Trash2,
-  Cpu,
+  MessageCircle,
+  Sparkles,
+  Sprout,
+  AlarmClock,
+  Smartphone,
+  CircleHelp,
+  Search,
+  MessageSquare,
+  ChevronDown,
+  Bot,
+  MessageSquarePlus,
+  MoreHorizontal,
 } from 'lucide-react';
+import { isCronSessionKey, parseCronSessionKey } from '@/stores/chat/cron-session-utils';
+import { useCronStore } from '@/stores/cron';
 import { cn } from '@/lib/utils';
-import { useSettingsStore } from '@/stores/settings';
 import { useChatStore } from '@/stores/chat';
+import { useChatChromeStore } from '@/stores/chat-chrome';
 import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { hostApiFetch } from '@/lib/host-api';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import type { AgentSummary } from '@/types/agent';
 import logoSvg from '@/assets/logo.svg';
-
-type SessionBucketKey =
-  | 'today'
-  | 'yesterday'
-  | 'withinWeek'
-  | 'withinTwoWeeks'
-  | 'withinMonth'
-  | 'older';
-
-interface NavItemProps {
-  to: string;
-  icon: React.ReactNode;
-  label: string;
-  badge?: string;
-  collapsed?: boolean;
-  onClick?: () => void;
-  testId?: string;
-}
-
-function NavItem({ to, icon, label, badge, collapsed, onClick, testId }: NavItemProps) {
-  return (
-    <NavLink
-      to={to}
-      onClick={onClick}
-      data-testid={testId}
-      className={({ isActive }) =>
-        cn(
-          'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors',
-          'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80',
-          isActive
-            ? 'bg-black/5 dark:bg-white/10 text-foreground'
-            : '',
-          collapsed && 'justify-center px-0'
-        )
-      }
-    >
-      {({ isActive }) => (
-        <>
-          <div className={cn("flex shrink-0 items-center justify-center", isActive ? "text-foreground" : "text-muted-foreground")}>
-            {icon}
-          </div>
-          {!collapsed && (
-            <>
-              <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{label}</span>
-              {badge && (
-                <Badge variant="secondary" className="ml-auto shrink-0">
-                  {badge}
-                </Badge>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </NavLink>
-  );
-}
-
-function getSessionBucket(activityMs: number, nowMs: number): SessionBucketKey {
-  if (!activityMs || activityMs <= 0) return 'older';
-
-  const now = new Date(nowMs);
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
-
-  if (activityMs >= startOfToday) return 'today';
-  if (activityMs >= startOfYesterday) return 'yesterday';
-
-  const daysAgo = (startOfToday - activityMs) / (24 * 60 * 60 * 1000);
-  if (daysAgo <= 7) return 'withinWeek';
-  if (daysAgo <= 14) return 'withinTwoWeeks';
-  if (daysAgo <= 30) return 'withinMonth';
-  return 'older';
-}
-
-const INITIAL_NOW_MS = Date.now();
+import { ChatSearchModal } from '@/components/chat/ChatSearchModal';
+import { AgentSessionsHistorySheet } from '@/components/layout/AgentSessionsHistorySheet';
+import { useShellUiStore } from '@/stores/shell-ui';
+import {
+  countUnreadSessionsUnderAgent,
+  isSessionUnread,
+  useSidebarUnreadStore,
+} from '@/stores/sidebar-unread';
 
 function getAgentIdFromSessionKey(sessionKey: string): string {
   if (!sessionKey.startsWith('agent:')) return 'main';
@@ -112,11 +54,50 @@ function getAgentIdFromSessionKey(sessionKey: string): string {
   return agentId || 'main';
 }
 
+type RailItemId = 'chat' | 'inspiration' | 'growth' | 'tasks';
+
+/** First paint: show this many sessions per agent; first footer click expands in-sidebar. */
+const SIDEBAR_AGENT_SESSIONS_INITIAL = 3;
+
+function RailNavButton({
+  id,
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  id: RailItemId;
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={`sidebar-rail-${id}`}
+      onClick={onClick}
+      className={cn(
+        'flex w-full flex-col items-center gap-1 rounded-xl py-2.5 text-[11px] font-medium transition-colors',
+        active
+          ? 'bg-black/[0.08] text-foreground dark:bg-white/10'
+          : 'text-foreground/55 hover:bg-black/[0.05] hover:text-foreground/80 dark:hover:bg-white/5',
+      )}
+    >
+      <span className="flex h-6 w-6 items-center justify-center [&_svg]:h-[22px] [&_svg]:w-[22px]">{icon}</span>
+      <span className="leading-tight">{label}</span>
+    </button>
+  );
+}
+
 export function Sidebar() {
-  const sidebarCollapsed = useSettingsStore((state) => state.sidebarCollapsed);
-  const setSidebarCollapsed = useSettingsStore((state) => state.setSidebarCollapsed);
+  const openSettingsModal = useSettingsUiStore((s) => s.openModal);
+  const settingsModalOpen = useSettingsUiStore((s) => s.open);
+  const openFeedbackModal = useShellUiStore((s) => s.openFeedbackModal);
+  const openWechatConnectModal = useShellUiStore((s) => s.openWechatConnectModal);
 
   const sessions = useChatStore((s) => s.sessions);
+  const currentAgentId = useChatStore((s) => s.currentAgentId);
   const currentSessionKey = useChatStore((s) => s.currentSessionKey);
   const sessionLabels = useChatStore((s) => s.sessionLabels);
   const sessionLastActivity = useChatStore((s) => s.sessionLastActivity);
@@ -125,6 +106,10 @@ export function Sidebar() {
   const deleteSession = useChatStore((s) => s.deleteSession);
   const loadSessions = useChatStore((s) => s.loadSessions);
   const loadHistory = useChatStore((s) => s.loadHistory);
+
+  const sessionReadWatermark = useSidebarUnreadStore((s) => s.sessionReadWatermark);
+  const seedSessionWatermarkIfMissing = useSidebarUnreadStore((s) => s.seedSessionWatermarkIfMissing);
+  const bumpSessionReadAtLeast = useSidebarUnreadStore((s) => s.bumpSessionReadAtLeast);
 
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
@@ -142,243 +127,568 @@ export function Sidebar() {
       cancelled = true;
     };
   }, [isGatewayRunning, loadHistory, loadSessions]);
+
   const agents = useAgentsStore((s) => s.agents);
+  const defaultAgentId = useAgentsStore((s) => s.defaultAgentId);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
+  const deleteAgent = useAgentsStore((s) => s.deleteAgent);
+
+  const cronJobs = useCronStore((s) => s.jobs);
+  const fetchCronJobs = useCronStore((s) => s.fetchJobs);
+  const safeAgents = Array.isArray(agents) ? agents : [];
+  const safeCronJobs = Array.isArray(cronJobs) ? cronJobs : [];
 
   const navigate = useNavigate();
-  const isOnChat = useLocation().pathname === '/';
+  const { pathname } = useLocation();
+  const isOnChat = pathname === '/';
 
-  const getSessionLabel = (key: string, displayName?: string, label?: string) =>
-    sessionLabels[key] ?? label ?? displayName ?? key;
-
-  const openDevConsole = async () => {
-    try {
-      const result = await hostApiFetch<{
-        success: boolean;
-        url?: string;
-        error?: string;
-      }>('/api/gateway/control-ui');
-      if (result.success && result.url) {
-        window.electron.openExternal(result.url);
-      } else {
-        console.error('Failed to get Dev Console URL:', result.error);
-      }
-    } catch (err) {
-      console.error('Error opening Dev Console:', err);
-    }
-  };
-
-  const { t } = useTranslation(['common', 'chat']);
+  const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<{ key: string; label: string } | null>(null);
-  const [nowMs, setNowMs] = useState(INITIAL_NOW_MS);
+  const [agentToDelete, setAgentToDelete] = useState<AgentSummary | null>(null);
+  /**
+   * Accordion: only one agent's session list open.
+   * - `default`: follow current agent (see resolvedExpandedAgentId)
+   * - `string`: that agent expanded
+   * - `null`: user collapsed all
+   */
+  const [expandMode, setExpandMode] = useState<'default' | string | null>('default');
+  /** After first "load more", sidebar lists all sessions for that agent; next action opens sheet. */
+  const [agentSessionListExpanded, setAgentSessionListExpanded] = useState<Record<string, boolean>>({});
+  const [sessionHistorySheetAgentId, setSessionHistorySheetAgentId] = useState<string | null>(null);
 
+  /** Collapse per-agent session list + close history sheet when active agent changes. */
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 60 * 1000);
-    return () => window.clearInterval(timer);
+    let prevAgentId = useChatStore.getState().currentAgentId;
+    const unsub = useChatStore.subscribe((state) => {
+      const next = state.currentAgentId;
+      if (next !== prevAgentId) {
+        prevAgentId = next;
+        setExpandMode('default');
+        setAgentSessionListExpanded({});
+        setSessionHistorySheetAgentId(null);
+      }
+    });
+    return unsub;
   }, []);
 
   useEffect(() => {
     void fetchAgents();
   }, [fetchAgents]);
 
-  const agentNameById = useMemo(
-    () => Object.fromEntries((agents ?? []).map((agent) => [agent.id, agent.name])),
-    [agents],
+  useEffect(() => {
+    if (!isOnChat || !isGatewayRunning) return;
+    void fetchCronJobs();
+  }, [isOnChat, isGatewayRunning, fetchCronJobs]);
+
+  const { t } = useTranslation('common');
+  const { t: tAgents } = useTranslation('agents');
+
+  const cronTitleByJobId = useMemo(
+    () => Object.fromEntries(safeCronJobs.map((j) => [j.id, j.name?.trim() || ''])),
+    [safeCronJobs],
   );
-  const sessionBuckets: Array<{ key: SessionBucketKey; label: string; sessions: typeof sessions }> = [
-    { key: 'today', label: t('chat:historyBuckets.today'), sessions: [] },
-    { key: 'yesterday', label: t('chat:historyBuckets.yesterday'), sessions: [] },
-    { key: 'withinWeek', label: t('chat:historyBuckets.withinWeek'), sessions: [] },
-    { key: 'withinTwoWeeks', label: t('chat:historyBuckets.withinTwoWeeks'), sessions: [] },
-    { key: 'withinMonth', label: t('chat:historyBuckets.withinMonth'), sessions: [] },
-    { key: 'older', label: t('chat:historyBuckets.older'), sessions: [] },
-  ];
-  const sessionBucketMap = Object.fromEntries(sessionBuckets.map((bucket) => [bucket.key, bucket])) as Record<
-    SessionBucketKey,
-    (typeof sessionBuckets)[number]
-  >;
 
-  for (const session of [...sessions].sort((a, b) =>
-    (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0)
-  )) {
-    const bucketKey = getSessionBucket(sessionLastActivity[session.key] ?? 0, nowMs);
-    sessionBucketMap[bucketKey].sessions.push(session);
-  }
+  const getSessionLabel = (key: string, displayName?: string, label?: string) => {
+    const parsed = parseCronSessionKey(key);
+    if (parsed) {
+      const taskTitle = cronTitleByJobId[parsed.jobId];
+      if (taskTitle) return taskTitle;
+    }
+    return sessionLabels[key] ?? label ?? displayName ?? key;
+  };
 
-  const navItems = [
-    { to: '/models', icon: <Cpu className="h-[18px] w-[18px]" strokeWidth={2} />, label: t('sidebar.models'), testId: 'sidebar-nav-models' },
-    { to: '/agents', icon: <Bot className="h-[18px] w-[18px]" strokeWidth={2} />, label: t('sidebar.agents'), testId: 'sidebar-nav-agents' },
-    { to: '/channels', icon: <Network className="h-[18px] w-[18px]" strokeWidth={2} />, label: t('sidebar.channels'), testId: 'sidebar-nav-channels' },
-    { to: '/skills', icon: <Puzzle className="h-[18px] w-[18px]" strokeWidth={2} />, label: t('sidebar.skills'), testId: 'sidebar-nav-skills' },
-    { to: '/cron', icon: <Clock className="h-[18px] w-[18px]" strokeWidth={2} />, label: t('sidebar.cronTasks'), testId: 'sidebar-nav-cron' },
-  ];
+  const agentNameById = useMemo(
+    () => Object.fromEntries(safeAgents.map((agent) => [agent.id, agent.name])),
+    [safeAgents],
+  );
+
+  const getAgentDisplay = useMemo(() => {
+    return (agentId: string) => {
+      const a = safeAgents.find((x) => x.id === agentId);
+      if (a) {
+        const subtitle = a.modelDisplay || a.workspace.split(/[/\\]/).filter(Boolean).pop() || '';
+        return { name: a.name, subtitle };
+      }
+      return { name: agentNameById[agentId] || agentId, subtitle: '' };
+    };
+  }, [safeAgents, agentNameById]);
+
+  const orderedAgentIds = useMemo(() => {
+    const fromStore = [...safeAgents]
+      .sort((a, b) => {
+        if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      })
+      .map((a) => a.id);
+    const seen = new Set(fromStore);
+    const fromSessions = [...new Set(sessions.map((s) => getAgentIdFromSessionKey(s.key)))].filter(
+      (id) => !seen.has(id),
+    );
+    fromSessions.sort();
+    const merged = [...fromStore, ...fromSessions];
+    const fallback = defaultAgentId || 'main';
+    if (!merged.includes(fallback)) {
+      merged.unshift(fallback);
+    }
+    return merged;
+  }, [safeAgents, sessions, defaultAgentId]);
+
+  const sessionsForAgent = (agentId: string) => {
+    const filtered = sessions.filter((s) => getAgentIdFromSessionKey(s.key) === agentId);
+    return filtered.sort((a, b) => {
+      const unreadA = isSessionUnread(
+        a.key,
+        sessionLastActivity,
+        sessionReadWatermark,
+        currentSessionKey,
+        isOnChat,
+      );
+      const unreadB = isSessionUnread(
+        b.key,
+        sessionLastActivity,
+        sessionReadWatermark,
+        currentSessionKey,
+        isOnChat,
+      );
+      if (unreadA !== unreadB) return unreadA ? -1 : 1;
+      return (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0);
+    });
+  };
+
+  const visibleAgentIds = orderedAgentIds;
+
+  useEffect(() => {
+    for (const agentId of visibleAgentIds) {
+      const { sessions: sess, sessionLastActivity: activity } = useChatStore.getState();
+      for (const s of sess) {
+        if (getAgentIdFromSessionKey(s.key) !== agentId) continue;
+        seedSessionWatermarkIfMissing(s.key, activity[s.key] ?? 0, agentId);
+      }
+    }
+  }, [visibleAgentIds, sessions, sessionLastActivity, seedSessionWatermarkIfMissing]);
+
+  const resolvedExpandedAgentId = useMemo(() => {
+    if (expandMode === 'default') {
+      if (visibleAgentIds.length === 0) return null;
+      return visibleAgentIds.includes(currentAgentId) ? currentAgentId : visibleAgentIds[0];
+    }
+    return expandMode;
+  }, [expandMode, visibleAgentIds, currentAgentId]);
+
+  const toggleAgentCollapsed = (agentId: string) => {
+    useChatChromeStore.getState().setAgentPanelSubjectAgentId(agentId);
+    if (resolvedExpandedAgentId === agentId) {
+      setExpandMode(null);
+      return;
+    }
+    setExpandMode(agentId);
+    setAgentSessionListExpanded((exp) => {
+      const v = exp[agentId];
+      return v === undefined ? {} : { [agentId]: v };
+    });
+  };
 
   return (
     <aside
       data-testid="sidebar"
-      className={cn(
-        'flex min-h-0 shrink-0 flex-col overflow-hidden border-r bg-[#eae8e1]/60 dark:bg-background transition-all duration-300',
-        sidebarCollapsed ? 'w-16' : 'w-64'
-      )}
+      className="flex h-full min-h-0 shrink-0 border-r border-black/[0.06] bg-[#f7f7f7] dark:border-border dark:bg-background"
     >
-      {/* Top Header Toggle */}
-      <div className={cn("flex items-center p-2 h-12", sidebarCollapsed ? "justify-center" : "justify-between")}>
-        {!sidebarCollapsed && (
-          <div className="flex items-center gap-2 px-2 overflow-hidden">
-            <img src={logoSvg} alt="ClawX" className="h-5 w-auto shrink-0" />
-            <span className="text-sm font-semibold truncate whitespace-nowrap text-foreground/90">
-              ClawX
-            </span>
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-        >
-          {sidebarCollapsed ? (
-            <PanelLeft className="h-[18px] w-[18px]" />
-          ) : (
-            <PanelLeftClose className="h-[18px] w-[18px]" />
-          )}
-        </Button>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex flex-col px-2 gap-0.5">
+      {/* Left rail */}
+      <div className="flex w-[72px] shrink-0 flex-col items-center border-r border-black/[0.06] bg-[#f7f7f7] py-3 dark:border-border dark:bg-background">
         <button
-          data-testid="sidebar-new-chat"
+          type="button"
+          className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg transition-opacity hover:opacity-90"
           onClick={() => {
-            const { messages } = useChatStore.getState();
-            if (messages.length > 0) newSession();
             navigate('/');
           }}
-          className={cn(
-            'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors mb-2',
-            'bg-black/5 dark:bg-accent shadow-none border border-transparent text-foreground',
-            sidebarCollapsed && 'justify-center px-0',
-          )}
+          aria-label={t('common:sidebar.brand')}
         >
-          <div className="flex shrink-0 items-center justify-center text-foreground/80">
-            <Plus className="h-[18px] w-[18px]" strokeWidth={2} />
-          </div>
-          {!sidebarCollapsed && <span className="flex-1 text-left overflow-hidden text-ellipsis whitespace-nowrap">{t('sidebar.newChat')}</span>}
+          <img src={logoSvg} alt="" className="h-7 w-7 object-contain" />
         </button>
 
-        {navItems.map((item) => (
-          <NavItem
-            key={item.to}
-            {...item}
-            collapsed={sidebarCollapsed}
+        <nav className="flex w-full flex-1 flex-col gap-1 px-1.5">
+          <RailNavButton
+            id="chat"
+            active={isOnChat}
+            label={t('common:sidebar.railChat')}
+            icon={<MessageCircle className="text-foreground" strokeWidth={1.75} />}
+            onClick={() => navigate('/')}
           />
-        ))}
-      </nav>
+          <RailNavButton
+            id="inspiration"
+            active={pathname === '/inspiration'}
+            label={t('common:sidebar.railInspiration')}
+            icon={<Sparkles className="text-foreground" strokeWidth={1.75} />}
+            onClick={() => navigate('/inspiration')}
+          />
+          <RailNavButton
+            id="growth"
+            active={pathname === '/growth'}
+            label={t('common:sidebar.railGrowth')}
+            icon={<Sprout className="text-foreground" strokeWidth={1.75} />}
+            onClick={() => navigate('/growth')}
+          />
+          <RailNavButton
+            id="tasks"
+            active={pathname === '/tasks'}
+            label={t('common:sidebar.railTasks')}
+            icon={<AlarmClock className="text-foreground" strokeWidth={1.75} />}
+            onClick={() => navigate('/tasks')}
+          />
+        </nav>
 
-      {/* Session list — below Settings, only when expanded */}
-      {!sidebarCollapsed && sessions.length > 0 && (
-        <div className="mt-4 flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 space-y-0.5">
-          {sessionBuckets.map((bucket) => (
-            bucket.sessions.length > 0 ? (
-              <div key={bucket.key} className="pt-2">
-                <div className="px-2.5 pb-1 text-[11px] font-medium text-muted-foreground/60 tracking-tight">
-                  {bucket.label}
-                </div>
-                {bucket.sessions.map((s) => {
-                  const agentId = getAgentIdFromSessionKey(s.key);
-                  const agentName = agentNameById[agentId] || agentId;
-                  return (
-                    <div key={s.key} className="group relative flex items-center">
-                      <button
-                        onClick={() => { switchSession(s.key); navigate('/'); }}
+        <div className="mt-auto flex flex-col gap-1 px-1.5 pb-1">
+          <button
+            type="button"
+            data-testid="sidebar-rail-help"
+            onClick={() => openFeedbackModal()}
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-foreground/45 transition-colors hover:bg-black/[0.06] hover:text-foreground/70 dark:hover:bg-white/10"
+            title={t('common:sidebar.railHelp')}
+          >
+            <CircleHelp className="h-[20px] w-[20px]" strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            data-testid="sidebar-rail-mobile"
+            onClick={() => openWechatConnectModal()}
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-foreground/45 transition-colors hover:bg-black/[0.06] hover:text-foreground/70 dark:hover:bg-white/10"
+            title={t('common:sidebar.railMobile')}
+          >
+            <Smartphone className="h-[20px] w-[20px]" strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            data-testid="sidebar-nav-settings"
+            onClick={() => openSettingsModal('general')}
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
+              settingsModalOpen
+                ? 'bg-black/[0.08] text-foreground dark:bg-white/10'
+                : 'text-foreground/45 hover:bg-black/[0.06] hover:text-foreground/70 dark:hover:bg-white/10',
+            )}
+            title={t('common:sidebar.settings')}
+          >
+            <SettingsIcon className="h-[20px] w-[20px]" strokeWidth={1.75} />
+          </button>
+        </div>
+      </div>
+
+      {/* Chat expansion panel */}
+      {isOnChat && (
+        <div
+          data-testid="sidebar-chat-panel"
+          className="flex w-[272px] shrink-0 flex-col overflow-hidden border-r border-black/[0.06] bg-white dark:border-border dark:bg-card"
+        >
+          <div className="flex items-center gap-2 p-3 pb-2">
+            <div className="relative min-w-0 flex-1">
+              <button
+                type="button"
+                data-testid="sidebar-chat-search-open"
+                onClick={() => setChatSearchOpen(true)}
+                className="flex h-10 w-full items-center gap-2 rounded-full border border-transparent bg-black/[0.03] pl-9 pr-3 text-left text-[13px] text-muted-foreground transition-colors hover:bg-black/[0.06] dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <span className="truncate">{t('common:sidebar.chatSearchPlaceholder')}</span>
+              </button>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              data-testid="sidebar-new-agent"
+              title={t('common:sidebar.newAgent')}
+              aria-label={t('common:sidebar.newAgent')}
+              className="h-10 w-10 shrink-0 rounded-full border-black/12 bg-transparent shadow-none hover:bg-black/[0.04] dark:border-white/10"
+              onClick={() => openSettingsModal('agents')}
+            >
+              <Bot className="h-[18px] w-[18px]" strokeWidth={2} />
+            </Button>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto px-2 pb-3">
+            {visibleAgentIds.map((agentId) => {
+              const { name, subtitle } = getAgentDisplay(agentId);
+              const expanded = resolvedExpandedAgentId === agentId;
+              const rows = sessionsForAgent(agentId);
+              const listExpandedInSidebar = agentSessionListExpanded[agentId] === true;
+              const rowsVisible =
+                rows.length <= SIDEBAR_AGENT_SESSIONS_INITIAL || listExpandedInSidebar
+                  ? rows
+                  : rows.slice(0, SIDEBAR_AGENT_SESSIONS_INITIAL);
+              const showLoadMoreFooter =
+                rows.length > 0 &&
+                rows.length > SIDEBAR_AGENT_SESSIONS_INITIAL &&
+                !listExpandedInSidebar;
+              const showViewMoreFooter = rows.length > 0 && !showLoadMoreFooter;
+              const initial = name.trim().charAt(0).toUpperCase() || '?';
+              const unread = countUnreadSessionsUnderAgent(
+                agentId,
+                sessions,
+                sessionLastActivity,
+                sessionReadWatermark,
+                currentSessionKey,
+                isOnChat,
+              );
+
+              const agentSummary = safeAgents.find((a) => a.id === agentId);
+
+              return (
+                <div
+                  key={agentId}
+                  className="group mb-1"
+                  data-testid="sidebar-agent-group"
+                  data-agent-id={agentId}
+                >
+                  <div className="flex items-start gap-1.5">
+                    <button
+                      type="button"
+                      className="mt-2 flex h-6 w-5 shrink-0 items-center justify-center text-muted-foreground"
+                      aria-expanded={expanded}
+                      onClick={() => {
+                        toggleAgentCollapsed(agentId);
+                      }}
+                    >
+                      <ChevronDown
+                        className={cn('h-4 w-4 transition-transform', !expanded && '-rotate-90')}
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="sidebar-agent-row"
+                      className="flex min-w-0 flex-1 items-start gap-2 rounded-xl px-1.5 py-2 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/5"
+                      onClick={() => {
+                        toggleAgentCollapsed(agentId);
+                      }}
+                    >
+                      <div
                         className={cn(
-                          'w-full text-left rounded-lg px-2.5 py-1.5 text-[13px] transition-colors pr-7',
-                          'hover:bg-black/5 dark:hover:bg-white/5',
-                          isOnChat && currentSessionKey === s.key
-                            ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium'
-                            : 'text-foreground/75',
+                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold text-white shadow-sm',
+                          agentId === 'main' || agentId === defaultAgentId
+                            ? 'bg-gradient-to-br from-red-500 to-red-600'
+                            : 'bg-gradient-to-br from-slate-500 to-slate-700 dark:from-slate-600 dark:to-slate-800',
                         )}
                       >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/70 dark:bg-white/[0.08]">
-                            {agentName}
-                          </span>
-                          <span className="truncate">{getSessionLabel(s.key, s.displayName, s.label)}</span>
+                        {agentId === 'main' || agentId === defaultAgentId ? (
+                          <img src={logoSvg} alt="" className="h-5 w-5 object-contain brightness-0 invert" />
+                        ) : (
+                          initial
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <div className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-tight text-foreground">
+                            {name}
+                          </div>
+                          {unread > 0 ? (
+                            <span
+                              data-testid="sidebar-agent-unread-badge"
+                              data-agent-id={agentId}
+                              className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm tabular-nums dark:bg-red-600"
+                              aria-label={String(unread)}
+                            >
+                              {unread > 99 ? '99+' : unread}
+                            </span>
+                          ) : null}
                         </div>
-                      </button>
+                        {subtitle ? (
+                          <div className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                            {subtitle}
+                          </div>
+                        ) : null}
+                      </div>
+                    </button>
+                    <div className="flex shrink-0 items-center gap-0.5 pt-1">
+                      {agentSummary && !agentSummary.isDefault && !agentSummary.isPreinstalled ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              data-testid={`sidebar-agent-more-menu-${agentId}`}
+                              className="h-7 w-7 text-muted-foreground opacity-0 transition-all hover:bg-black/[0.08] hover:text-foreground group-hover:opacity-100 data-[state=open]:opacity-100 dark:hover:bg-white/10"
+                              title={tAgents('moreMenu')}
+                              aria-label={tAgents('moreMenu')}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreHorizontal className="h-4 w-4" strokeWidth={2} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            sideOffset={6}
+                            className="min-w-[9.5rem] rounded-xl border border-black/10 bg-popover p-1.5 shadow-xl dark:border-white/10 dark:bg-card"
+                          >
+                            <DropdownMenuItem
+                              data-testid={`sidebar-agent-delete-menu-item-${agentId}`}
+                              className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-destructive focus:bg-destructive/10 focus:text-destructive"
+                              onSelect={() => {
+                                setAgentToDelete(agentSummary);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                              <span>{t('common:actions.delete')}</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
                       <button
-                        aria-label="Delete session"
+                        type="button"
+                        data-testid={`sidebar-new-chat-${agentId}`}
+                        title={t('common:sidebar.newChatForAgent')}
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-black/[0.06] text-foreground transition-colors hover:bg-black/[0.1] dark:bg-white/10 dark:hover:bg-white/15"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSessionToDelete({
-                            key: s.key,
-                            label: getSessionLabel(s.key, s.displayName, s.label),
-                          });
+                          newSession(agentId);
+                          navigate('/');
                         }}
-                        className={cn(
-                          'absolute right-1 flex items-center justify-center rounded p-0.5 transition-opacity',
-                          'opacity-0 group-hover:opacity-100',
-                          'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
-                        )}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <MessageSquarePlus className="h-[15px] w-[15px]" strokeWidth={1.75} />
                       </button>
                     </div>
-                  );
-                })}
-              </div>
-            ) : null
-          ))}
+                  </div>
+
+                  {expanded && (
+                    <div className="ml-6 mt-0.5 space-y-0.5 border-l border-black/[0.06] pl-2 dark:border-white/10">
+                      {rows.length === 0 ? (
+                        <p className="py-1.5 pl-1 text-[11px] text-muted-foreground">
+                          {t('common:sidebar.noSessionsUnderAgent')}
+                        </p>
+                      ) : null}
+                      {rowsVisible.map((s) => {
+                        const sessionRowUnread = isSessionUnread(
+                          s.key,
+                          sessionLastActivity,
+                          sessionReadWatermark,
+                          currentSessionKey,
+                          isOnChat,
+                        );
+                        return (
+                        <div key={s.key} className="group relative">
+                          <button
+                            type="button"
+                            data-testid={isCronSessionKey(s.key) ? 'sidebar-session-cron' : undefined}
+                            onClick={() => {
+                              bumpSessionReadAtLeast(s.key, sessionLastActivity[s.key] ?? 0);
+                              switchSession(s.key);
+                              navigate('/');
+                            }}
+                            className={cn(
+                              'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] transition-colors pr-7',
+                              isOnChat && currentSessionKey === s.key
+                                ? 'bg-black/[0.06] font-medium text-foreground dark:bg-white/10'
+                                : 'text-foreground/80 hover:bg-black/[0.04] dark:hover:bg-white/5',
+                            )}
+                          >
+                            {sessionRowUnread ? (
+                              <span
+                                data-testid="sidebar-session-unread-dot"
+                                className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm tabular-nums dark:bg-red-600"
+                                aria-label="1"
+                              >
+                                1
+                              </span>
+                            ) : (
+                              <span className="h-[18px] w-[18px] shrink-0" aria-hidden />
+                            )}
+                            {isCronSessionKey(s.key) ? (
+                              <AlarmClock
+                                className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400"
+                                aria-hidden
+                              />
+                            ) : (
+                              <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate">{getSessionLabel(s.key, s.displayName, s.label)}</span>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Delete session"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSessionToDelete({
+                                key: s.key,
+                                label: getSessionLabel(s.key, s.displayName, s.label),
+                              });
+                            }}
+                            className={cn(
+                              'absolute right-0.5 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-md p-1 transition-opacity',
+                              'opacity-0 group-hover:opacity-100',
+                              'text-muted-foreground hover:bg-destructive/10 hover:text-destructive',
+                            )}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        );
+                      })}
+                      {showLoadMoreFooter ? (
+                        <div className="flex w-full justify-end">
+                          <button
+                            type="button"
+                            data-testid="sidebar-agent-load-more"
+                            data-agent-id={agentId}
+                            onClick={() => {
+                              setAgentSessionListExpanded((prev) => ({ ...prev, [agentId]: true }));
+                            }}
+                            className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-right text-[12px] text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/5"
+                          >
+                            <MoreHorizontal className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                            <span className="truncate">{t('common:sidebar.loadMoreSessions')}</span>
+                          </button>
+                        </div>
+                      ) : null}
+                      {showViewMoreFooter ? (
+                        <div className="flex w-full justify-end">
+                          <button
+                            type="button"
+                            data-testid="sidebar-agent-view-more"
+                            data-agent-id={agentId}
+                            onClick={() => setSessionHistorySheetAgentId(agentId)}
+                            className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-right text-[12px] text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/5"
+                          >
+                            <MoreHorizontal className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                            <span className="truncate">{t('common:sidebar.viewMoreSessions')}</span>
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* Footer */}
-      <div className="p-2 mt-auto">
-        <NavLink
-            to="/settings"
-            data-testid="sidebar-nav-settings"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] font-medium transition-colors',
-                'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80',
-                isActive && 'bg-black/5 dark:bg-white/10 text-foreground',
-                sidebarCollapsed ? 'justify-center px-0' : ''
-              )
-            }
-          >
-          {({ isActive }) => (
-            <>
-              <div className={cn("flex shrink-0 items-center justify-center", isActive ? "text-foreground" : "text-muted-foreground")}>
-                <SettingsIcon className="h-[18px] w-[18px]" strokeWidth={2} />
-              </div>
-              {!sidebarCollapsed && <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{t('sidebar.settings')}</span>}
-            </>
-          )}
-        </NavLink>
+      <AgentSessionsHistorySheet
+        key={sessionHistorySheetAgentId ?? 'agent-sessions-sheet-closed'}
+        open={sessionHistorySheetAgentId !== null}
+        onOpenChange={(open) => {
+          if (!open) setSessionHistorySheetAgentId(null);
+        }}
+        agentName={
+          sessionHistorySheetAgentId
+            ? getAgentDisplay(sessionHistorySheetAgentId).name
+            : ''
+        }
+        sessions={sessionHistorySheetAgentId ? sessionsForAgent(sessionHistorySheetAgentId) : []}
+        currentSessionKey={currentSessionKey}
+        isOnChat={isOnChat}
+        getSessionLabel={getSessionLabel}
+        sessionLastActivity={sessionLastActivity}
+        sessionReadWatermark={sessionReadWatermark}
+        onSelectSession={(key) => {
+          bumpSessionReadAtLeast(key, sessionLastActivity[key] ?? 0);
+          switchSession(key);
+          navigate('/');
+        }}
+        onRequestDelete={(key, label) => setSessionToDelete({ key, label })}
+        bumpSessionReadAtLeast={bumpSessionReadAtLeast}
+        isSessionUnread={isSessionUnread}
+      />
 
-        <Button
-          data-testid="sidebar-open-dev-console"
-          variant="ghost"
-          className={cn(
-            'flex items-center gap-2.5 rounded-lg px-2.5 py-2 h-auto text-[14px] font-medium transition-colors w-full mt-1',
-            'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80',
-            sidebarCollapsed ? 'justify-center px-0' : 'justify-start'
-          )}
-          onClick={openDevConsole}
-        >
-          <div className="flex shrink-0 items-center justify-center text-muted-foreground">
-            <Terminal className="h-[18px] w-[18px]" strokeWidth={2} />
-          </div>
-          {!sidebarCollapsed && (
-            <>
-              <span className="flex-1 text-left overflow-hidden text-ellipsis whitespace-nowrap">{t('common:sidebar.openClawPage')}</span>
-              <ExternalLink className="h-3 w-3 shrink-0 ml-auto opacity-50 text-muted-foreground" />
-            </>
-          )}
-        </Button>
-      </div>
+      <ChatSearchModal open={chatSearchOpen} onOpenChange={setChatSearchOpen} />
 
       <ConfirmDialog
         open={!!sessionToDelete}
@@ -394,6 +704,40 @@ export function Sidebar() {
           setSessionToDelete(null);
         }}
         onCancel={() => setSessionToDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={!!agentToDelete}
+        title={tAgents('deleteDialog.title')}
+        message={agentToDelete ? tAgents('deleteDialog.message', { name: agentToDelete.name }) : ''}
+        confirmLabel={t('common:actions.delete')}
+        pendingConfirmLabel={tAgents('deleteDialog.deleting')}
+        cancelLabel={t('common:actions.cancel')}
+        variant="destructive"
+        testId="sidebar-agent-delete-confirm-dialog"
+        onConfirm={async () => {
+          if (!agentToDelete) return;
+          const deletedId = agentToDelete.id;
+          try {
+            await deleteAgent(deletedId);
+            setAgentToDelete(null);
+            if (sessionHistorySheetAgentId === deletedId) {
+              setSessionHistorySheetAgentId(null);
+            }
+            const chat = useChatStore.getState();
+            if (getAgentIdFromSessionKey(chat.currentSessionKey) === deletedId) {
+              const snap = useAgentsStore.getState();
+              const fallback = snap.agents.find((a) => a.isDefault) ?? snap.agents[0];
+              const targetKey = fallback?.mainSessionKey ?? `agent:${snap.defaultAgentId}:main`;
+              chat.switchSession(targetKey);
+              navigate('/');
+            }
+            toast.success(tAgents('toast.agentDeleted'));
+          } catch (error) {
+            toast.error(tAgents('toast.agentDeleteFailed', { error: String(error) }));
+          }
+        }}
+        onCancel={() => setAgentToDelete(null)}
       />
     </aside>
   );

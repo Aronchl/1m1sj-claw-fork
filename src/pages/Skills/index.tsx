@@ -28,6 +28,8 @@ import { useSkillsStore } from '@/stores/skills';
 import { useGatewayStore } from '@/stores/gateway';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { cn } from '@/lib/utils';
+import type { PageLayout } from '@/lib/page-layout';
+import { pageInnerClass, pageLoadingShellClass, pageShellClass } from '@/lib/page-layout';
 import { invokeIpc } from '@/lib/api-client';
 import { hostApiFetch } from '@/lib/host-api';
 import { trackUiEvent } from '@/lib/telemetry';
@@ -36,9 +38,6 @@ import type { Skill } from '@/types/skill';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
-const INSTALL_ERROR_CODES = new Set(['installTimeoutError', 'installRateLimitError']);
-const FETCH_ERROR_CODES = new Set(['fetchTimeoutError', 'fetchRateLimitError', 'timeoutError', 'rateLimitError']);
-const SEARCH_ERROR_CODES = new Set(['searchTimeoutError', 'searchRateLimitError', 'timeoutError', 'rateLimitError']);
 
 
 
@@ -394,7 +393,9 @@ function SkillDetailDialog({ skill, isOpen, onClose, onToggle, onUninstall, onOp
   );
 }
 
-export function Skills() {
+export function Skills(props: { layout?: PageLayout } = {}) {
+  const { layout = 'page' } = props;
+  const embed = layout === 'modal';
   const {
     skills,
     loading,
@@ -588,7 +589,7 @@ export function Skills() {
       toast.success(t('toast.installed'));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      if (INSTALL_ERROR_CODES.has(errorMessage)) {
+      if (['installTimeoutError', 'installRateLimitError'].includes(errorMessage)) {
         toast.error(t(`toast.${errorMessage}`, { path: skillsDirPath }), { duration: 10000 });
       } else {
         toast.error(t('toast.failedInstall') + ': ' + errorMessage);
@@ -607,26 +608,33 @@ export function Skills() {
 
   if (loading) {
     return (
-      <div className="flex flex-col -m-6 dark:bg-background min-h-[calc(100vh-2.5rem)] items-center justify-center">
+      <div className={pageLoadingShellClass(layout)}>
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col -m-6 dark:bg-background h-[calc(100vh-2.5rem)] overflow-hidden">
-      <div className="w-full max-w-5xl mx-auto flex flex-col h-full p-10 pt-16">
+    <div className={pageShellClass(layout)}>
+      <div className={pageInnerClass(layout)}>
 
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 shrink-0 gap-4">
-          <div>
-            <h1 className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              {t('title')}
-            </h1>
-            <p className="text-[17px] text-foreground/70 font-medium">
-              {t('subtitle')}
-            </p>
-          </div>
+        <div
+          className={cn(
+            'flex flex-col md:flex-row md:items-start justify-between mb-6 shrink-0 gap-4',
+            embed && 'md:justify-end',
+          )}
+        >
+          {!embed && (
+            <div>
+              <h1 className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+                {t('title')}
+              </h1>
+              <p className="text-[17px] text-foreground/70 font-medium">
+                {t('subtitle')}
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-3 md:mt-2">
             {hasInstalledSkills && (
@@ -742,7 +750,7 @@ export function Skills() {
             <div className="mb-4 p-4 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-sm font-medium flex items-center gap-2">
               <AlertCircle className="h-5 w-5 shrink-0" />
               <span>
-                {FETCH_ERROR_CODES.has(error)
+                {['fetchTimeoutError', 'fetchRateLimitError', 'timeoutError', 'rateLimitError'].includes(error)
                   ? t(`toast.${error}`, { path: skillsDirPath })
                   : error}
               </span>
@@ -854,7 +862,7 @@ export function Skills() {
               <div className="mb-4 p-4 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-sm font-medium flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 shrink-0" />
                 <span>
-                  {SEARCH_ERROR_CODES.has(searchError.replace('Error: ', ''))
+                  {['searchTimeoutError', 'searchRateLimitError', 'timeoutError', 'rateLimitError'].includes(searchError.replace('Error: ', ''))
                     ? t(`toast.${searchError.replace('Error: ', '')}`, { path: skillsDirPath })
                     : t('marketplace.searchError')}
                 </span>

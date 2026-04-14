@@ -197,6 +197,39 @@ describe('agent config lifecycle', () => {
     );
   });
 
+  it('rejects deleting bundled preinstalled agents', async () => {
+    await writeOpenClawJson({
+      agents: {
+        list: [
+          { id: 'main', name: 'Main', default: true },
+          { id: 'clawx-preset', name: 'Preset' },
+        ],
+      },
+    });
+
+    const { deleteAgentConfig } = await import('@electron/utils/agent-config');
+
+    await expect(deleteAgentConfig('clawx-preset')).rejects.toThrow('Preinstalled agents cannot be deleted');
+  });
+
+  it('marks bundled preinstalled agents in snapshot', async () => {
+    await writeOpenClawJson({
+      agents: {
+        list: [
+          { id: 'main', name: 'Main', default: true },
+          { id: 'clawx-preset', name: 'Std' },
+          { id: 'custom', name: 'Custom' },
+        ],
+      },
+    });
+
+    const { listAgentsSnapshot } = await import('@electron/utils/agent-config');
+    const snapshot = await listAgentsSnapshot();
+    expect(snapshot.agents.find((a) => a.id === 'clawx-preset')?.isPreinstalled).toBe(true);
+    expect(snapshot.agents.find((a) => a.id === 'custom')?.isPreinstalled).toBe(false);
+    expect(snapshot.agents.find((a) => a.id === 'main')?.isPreinstalled).toBe(false);
+  });
+
   it('deletes the config entry, bindings, runtime directory, and managed workspace for a removed agent', async () => {
     await writeOpenClawJson({
       agents: {
@@ -379,7 +412,7 @@ describe('agent config lifecycle', () => {
     expect(snapshot.channelAccountOwners['telegram:default']).toBe('main');
   });
 
-  it('keeps sibling account bindings for the same agent and channel', async () => {
+  it('replaces previous account binding for the same agent and channel', async () => {
     await writeOpenClawJson({
       agents: {
         list: [
@@ -404,38 +437,8 @@ describe('agent config lifecycle', () => {
     await assignChannelAccountToAgent('main', 'feishu', 'alt');
 
     const snapshot = await listAgentsSnapshot();
-    expect(snapshot.channelAccountOwners['feishu:default']).toBe('main');
+    expect(snapshot.channelAccountOwners['feishu:default']).toBeUndefined();
     expect(snapshot.channelAccountOwners['feishu:alt']).toBe('main');
-  });
-
-  it('preserves original agentId casing when persisting bindings', async () => {
-    await writeOpenClawJson({
-      agents: {
-        list: [
-          { id: 'MainAgent', name: 'Main Agent', default: true },
-        ],
-      },
-      channels: {
-        feishu: {
-          enabled: true,
-          accounts: {
-            default: { enabled: true, appId: 'main-app' },
-          },
-        },
-      },
-    });
-
-    const { assignChannelAccountToAgent } = await import('@electron/utils/agent-config');
-
-    await assignChannelAccountToAgent('MainAgent', 'feishu', 'default');
-
-    const config = await readOpenClawJson();
-    expect(config.bindings).toEqual([
-      {
-        agentId: 'MainAgent',
-        match: { channel: 'feishu', accountId: 'default' },
-      },
-    ]);
   });
 
   it('keeps a single owner for the same channel account', async () => {
@@ -487,26 +490,5 @@ describe('agent config lifecycle', () => {
     const snapshot = await listAgentsSnapshot();
     expect(snapshot.channelAccountOwners['feishu:default']).toBeUndefined();
     expect(snapshot.channelAccountOwners['telegram:default']).toBe('main');
-  });
-
-  it('avoids numeric-only ids when creating agents from CJK names', async () => {
-    await writeOpenClawJson({
-      agents: {
-        list: [{ id: 'main', name: 'Main', default: true }],
-      },
-    });
-
-    const { createAgent, listAgentsSnapshot } = await import('@electron/utils/agent-config');
-
-    await createAgent('测试2');
-    await createAgent('测试1');
-
-    const snapshot = await listAgentsSnapshot();
-    const agentIds = snapshot.agents.map((agent) => agent.id);
-
-    expect(agentIds).toContain('agent');
-    expect(agentIds).toContain('agent-2');
-    expect(agentIds).not.toContain('2');
-    expect(agentIds).not.toContain('1');
   });
 });

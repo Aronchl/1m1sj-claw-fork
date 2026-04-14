@@ -22,9 +22,16 @@ Standard dev commands are in `package.json` scripts and `README.md`. Key ones:
 | Comms regression compare | `pnpm run comms:compare` |
 | E2E tests (Playwright) | `pnpm run test:e2e` |
 | Build frontend only | `pnpm run build:vite` |
+| OSS stable → `latest/` | `pnpm run release` (= `release:latest`) — see `docs/oss-publish.md` |
+| OSS beta → `beta/` | `pnpm run release:beta` (= `release:beta:host`); explicit: `release:beta:mac` / `release:beta:win` / `release:beta:linux` |
+| OSS stable Windows (e.g. from macOS) | `pnpm run release:latest:win` |
+| OSS beta Windows (e.g. from macOS) | `pnpm run release:beta:win` |
 
 ### Non-obvious caveats
 
+- **Release env**: `release`, `release:latest`, `release:beta`, `release:*:mac|win|linux` 等入口会 `dotenv -e .env`。CI 已在环境里注入密钥时，应调用对应的 `*:steps`（如 `release:latest:host:steps`、`release:beta:win:steps`），勿重复 dotenv。兼容别名：`release:steps`、`release:beta:steps`。
+- **macOS signing/notarize**: `electron-builder.common.yml` sets `mac.forceCodeSigning: false` and `mac.notarize: false` (no Apple code signing; same policy as unsigned Windows). Release steps use `uv:download:release` on mac/linux to fetch all bundled uv archs before multi-arch packages.
+- **OSS upload skip**: `upload-release-to-oss.mjs` uses `scripts/lib/updater-feed.mjs` (`detectUpdateChannel`, generic feed filenames matching electron-updater `Provider#getChannelFilePrefix`). Only when `--prefix` matches the package-derived channel, it compares those feed YAMLs (present locally) to OSS; same `version:` as `package.json` on OSS → skip upload unless `--force` / `OSS_UPLOAD_FORCE=1`. `electron/main/updater.ts` imports the same `detectUpdateChannel` from that `.mjs`.
 - **pnpm version**: The exact pnpm version is pinned via `packageManager` in `package.json`. Use `corepack enable && corepack prepare` to activate the correct version before installing.
 - **Electron on headless Linux**: The dbus errors (`Failed to connect to the bus`) are expected and harmless in a headless/cloud environment. The app still runs fine with `$DISPLAY` set (e.g., `:1` via Xvfb/VNC).
 - **`pnpm run lint` race condition**: If `pnpm run uv:download` was recently run, ESLint may fail with `ENOENT: no such file or directory, scandir '/workspace/temp_uv_extract'` because the temp directory was created and removed during download. Simply re-run lint after the download script finishes.

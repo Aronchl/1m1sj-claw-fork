@@ -1,0 +1,166 @@
+# Shared build options (no `publish` here — wrapper ymls set `publish: generic` + OSS URL;
+# actual upload is scripts/upload-release-to-oss.mjs — see docs/oss-publish.md).
+appId: app.clawx.desktop
+productName: ClawNode
+copyright: Copyright © 2026 ClawNode
+compression: maximum
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - dist
+  - dist-electron
+  - package.json
+
+extraResources:
+  - from: resources/
+    to: resources/
+    filter:
+      - "**/*"
+      - "!icons/*.md"
+      - "!icons/*.svg"
+      - "!bin/**"
+      - "!screenshot/**"
+  - from: build/openclaw/
+    to: openclaw/
+  - from: build/preinstalled-skills/
+    to: resources/preinstalled-skills/
+
+afterPack: ./scripts/after-pack.cjs
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/lru-cache/**"
+
+npmRebuild: false
+
+mac:
+  extraResources:
+    - from: resources/bin/darwin-${arch}
+      to: bin
+    - from: resources/cli/posix/
+      to: cli/
+  category: public.app-category.productivity
+  icon: resources/icons/icon.icns
+  target:
+    # 默认仅构建 zip（用于 mac 自动更新链路）
+    - target: zip
+      arch:
+        - x64
+        - arm64
+    # 如需手动安装包，再打开 dmg 目标
+    # - target: dmg
+    #   arch:
+    #     - x64
+    #     - arm64
+  darkModeSupport: true
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: entitlements.mac.plist
+  entitlementsInherit: entitlements.mac.plist
+  # 不启用 Apple 代码签名（无 Developer ID）；arm64 可能回退 ad-hoc。应用内自动更新（Squirrel）在无正式签名时可能失败。
+  forceCodeSigning: false
+  # 无签名时不做公证（公证需已签名的分发包）。
+  notarize: false
+  extendInfo:
+    NSMicrophoneUsageDescription: ClawNode requires microphone access for voice features
+    NSCameraUsageDescription: ClawNode requires camera access for video features
+
+dmg:
+  size: 2g
+  background: resources/dmg-background.png
+  icon: resources/icons/icon.icns
+  iconSize: 100
+  window:
+    width: 540
+    height: 380
+  contents:
+    - type: file
+      x: 130
+      y: 220
+    - type: link
+      path: /Applications
+      x: 410
+      y: 220
+
+win:
+  signAndEditExecutable: false
+  forceCodeSigning: false
+  verifyUpdateCodeSignature: false
+  extraResources:
+    - from: resources/bin/win32-${arch}
+      to: bin
+    - from: resources/cli/win32/
+      to: cli/
+  icon: resources/icons/icon.ico
+  target:
+    - target: nsis
+      arch: x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  warningsAsErrors: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  differentialPackage: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ClawNode
+  uninstallDisplayName: ClawNode
+  license: LICENSE
+  include: scripts/installer.nsh
+  installerIcon: resources/icons/icon.ico
+  uninstallerIcon: resources/icons/icon.ico
+
+linux:
+  extraResources:
+    - from: resources/bin/linux-${arch}
+      to: bin
+    - from: resources/cli/posix/
+      to: cli/
+  icon: resources/icons
+  target:
+    - target: AppImage
+      arch:
+        - x64
+        - arm64
+    - target: deb
+      arch:
+        - x64
+        - arm64
+    - target: rpm
+      arch:
+        - x64
+  category: Utility
+  maintainer: ClawNode Team <public@valuecell.ai>
+  vendor: ClawNode
+  synopsis: AI Assistant powered by 一码一世界
+  description: ClawNode is a graphical AI assistant application that integrates with 一码一世界 Gateway to provide intelligent automation and assistance across multiple messaging platforms.
+  desktop:
+    entry:
+      Name: ClawNode
+      Comment: AI Assistant powered by 一码一世界
+      Categories: Utility;Network;
+      Keywords: ai;assistant;automation;chat;
+      StartupWMClass: clawx
+
+appImage:
+  license: LICENSE
+
+deb:
+  depends:
+    - libgtk-3-0 | libgtk-3-0t64
+    - libnotify4 | libnotify4t64
+    - libnss3
+    - libxss1 | libxss1t64
+    - libxtst6 | libxtst6t64
+    - xdg-utils
+    - libatspi2.0-0 | libatspi2.0-0t64
+    - libuuid1
+  afterInstall: scripts/linux/after-install.sh
+  afterRemove: scripts/linux/after-remove.sh

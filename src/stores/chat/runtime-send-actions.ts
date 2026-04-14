@@ -53,29 +53,39 @@ export function createRuntimeSendActions(set: ChatSet, get: ChatGet): Pick<Runti
       if (targetSessionKey !== get().currentSessionKey) {
         const current = get();
         const leavingEmpty = !current.currentSessionKey.endsWith(':main') && current.messages.length === 0;
-        set((s) => ({
-          currentSessionKey: targetSessionKey,
-          currentAgentId: getAgentIdFromSessionKey(targetSessionKey),
-          sessions: ensureSessionEntry(
-            leavingEmpty ? s.sessions.filter((session) => session.key !== current.currentSessionKey) : s.sessions,
-            targetSessionKey,
-          ),
-          sessionLabels: leavingEmpty
-            ? Object.fromEntries(Object.entries(s.sessionLabels).filter(([key]) => key !== current.currentSessionKey))
-            : s.sessionLabels,
-          sessionLastActivity: leavingEmpty
-            ? Object.fromEntries(Object.entries(s.sessionLastActivity).filter(([key]) => key !== current.currentSessionKey))
-            : s.sessionLastActivity,
-          messages: [],
-          streamingText: '',
-          streamingMessage: null,
-          streamingTools: [],
-          activeRunId: null,
-          error: null,
-          pendingFinal: false,
-          lastUserMessageAt: null,
-          pendingToolImages: [],
-        }));
+        set((s) => {
+          const readAt = s.sessionLastActivity[targetSessionKey] ?? Date.now();
+          const baseRead = leavingEmpty
+            ? Object.fromEntries(Object.entries(s.sessionReadAt ?? {}).filter(([key]) => key !== current.currentSessionKey))
+            : (s.sessionReadAt ?? {});
+          return {
+            currentSessionKey: targetSessionKey,
+            currentAgentId: getAgentIdFromSessionKey(targetSessionKey),
+            sessions: ensureSessionEntry(
+              leavingEmpty ? s.sessions.filter((session) => session.key !== current.currentSessionKey) : s.sessions,
+              targetSessionKey,
+            ),
+            sessionLabels: leavingEmpty
+              ? Object.fromEntries(Object.entries(s.sessionLabels).filter(([key]) => key !== current.currentSessionKey))
+              : s.sessionLabels,
+            sessionLastActivity: leavingEmpty
+              ? Object.fromEntries(Object.entries(s.sessionLastActivity).filter(([key]) => key !== current.currentSessionKey))
+              : s.sessionLastActivity,
+            sessionReadAt: {
+              ...baseRead,
+              [targetSessionKey]: readAt,
+            },
+            messages: [],
+            streamingText: '',
+            streamingMessage: null,
+            streamingTools: [],
+            activeRunId: null,
+            error: null,
+            pendingFinal: false,
+            lastUserMessageAt: null,
+            pendingToolImages: [],
+          };
+        });
         await get().loadHistory(true);
       }
 
@@ -94,7 +104,6 @@ export function createRuntimeSendActions(set: ChatSet, get: ChatGet): Pick<Runti
           fileSize: a.fileSize,
           preview: a.preview,
           filePath: a.stagedPath,
-          source: 'user-upload',
         })),
       };
       set((s) => ({
@@ -116,8 +125,11 @@ export function createRuntimeSendActions(set: ChatSet, get: ChatGet): Pick<Runti
         set((s) => ({ sessionLabels: { ...s.sessionLabels, [currentSessionKey]: truncated } }));
       }
 
-      // Mark this session as most recently active
-      set((s) => ({ sessionLastActivity: { ...s.sessionLastActivity, [currentSessionKey]: nowMs } }));
+      // Mark this session as most recently active (and read while composing)
+      set((s) => ({
+        sessionLastActivity: { ...s.sessionLastActivity, [currentSessionKey]: nowMs },
+        sessionReadAt: { ...(s.sessionReadAt ?? {}), [currentSessionKey]: nowMs },
+      }));
 
       // Start the history poll and safety timeout IMMEDIATELY (before the
       // RPC await) because the gateway's chat.send RPC may block until the

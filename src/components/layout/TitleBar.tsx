@@ -1,35 +1,70 @@
 /**
  * TitleBar Component
- * macOS: empty drag region (native traffic lights handled by hiddenInset).
- * Windows: drag region with custom minimize/maximize/close controls.
- * Linux: use native window chrome (no custom title bar).
+ * macOS: drag region + optional trailing (e.g. chat toolbar on the same row as traffic lights).
+ * Windows: drag region + optional trailing + minimize/maximize/close.
+ * Linux: no custom chrome unless trailing is set (then a slim top row for chat tools).
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { Minus, Square, X, Copy } from 'lucide-react';
 import { invokeIpc } from '@/lib/api-client';
 
-export function TitleBar() {
+export type TitleBarProps = {
+  /** Shown on the top window row (same strip as close/minimize on Windows). */
+  trailing?: ReactNode;
+};
+
+export function TitleBar({ trailing }: TitleBarProps) {
   const platform = window.electron?.platform;
 
   if (platform === 'darwin') {
-    // macOS: just a drag region, traffic lights are native
-    return <div className="drag-region h-10 shrink-0 border-b bg-background" />;
+    if (trailing) {
+      return (
+        <div className="flex h-10 shrink-0 items-stretch border-b border-black/10 bg-background dark:border-white/10">
+          <div className="drag-region min-h-0 min-w-0 flex-1" />
+          <div className="no-drag flex shrink-0 items-center pr-2">{trailing}</div>
+        </div>
+      );
+    }
+    return (
+      <div className="drag-region h-10 shrink-0 border-b border-black/10 bg-background dark:border-white/10" />
+    );
   }
 
-  // Linux keeps the native frame/title bar for better IME compatibility.
-  if (platform !== 'win32') {
-    return null;
+  if (platform === 'win32') {
+    if (trailing) {
+      return (
+        <div className="flex h-10 shrink-0 items-stretch border-b border-black/10 bg-background dark:border-white/10">
+          <div className="drag-region min-w-0 flex-1" />
+          <div className="no-drag flex shrink-0 items-center px-2">{trailing}</div>
+          <WindowsTitleBarControls />
+        </div>
+      );
+    }
+    return (
+      <div className="drag-region flex h-10 shrink-0 items-center justify-end border-b border-black/10 bg-background dark:border-white/10">
+        <WindowsTitleBarControls />
+      </div>
+    );
   }
 
-  return <WindowsTitleBar />;
+  // Linux / others: optional top row when trailing is needed
+  if (trailing) {
+    return (
+      <div className="flex h-10 shrink-0 items-stretch border-b border-black/10 bg-background dark:border-white/10">
+        <div className="min-w-0 flex-1" />
+        <div className="flex shrink-0 items-center px-2">{trailing}</div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
-function WindowsTitleBar() {
+function WindowsTitleBarControls() {
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
-    // Check initial state
-    invokeIpc('window:isMaximized').then((val) => {
+    void invokeIpc('window:isMaximized').then((val) => {
       setMaximized(val as boolean);
     });
   }, []);
@@ -39,8 +74,8 @@ function WindowsTitleBar() {
   };
 
   const handleMaximize = () => {
-    invokeIpc('window:maximize').then(() => {
-      invokeIpc('window:isMaximized').then((val) => {
+    void invokeIpc('window:maximize').then(() => {
+      void invokeIpc('window:isMaximized').then((val) => {
         setMaximized(val as boolean);
       });
     });
@@ -51,32 +86,31 @@ function WindowsTitleBar() {
   };
 
   return (
-    <div className="drag-region flex h-10 shrink-0 items-center justify-end border-b bg-background">
-
-      {/* Right: Window Controls */}
-      <div className="no-drag flex h-full">
-        <button
-          onClick={handleMinimize}
-          className="flex h-full w-11 items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
-          title="Minimize"
-        >
-          <Minus className="h-4 w-4" />
-        </button>
-        <button
-          onClick={handleMaximize}
-          className="flex h-full w-11 items-center justify-center text-muted-foreground hover:bg-accent transition-colors"
-          title={maximized ? 'Restore' : 'Maximize'}
-        >
-          {maximized ? <Copy className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
-        </button>
-        <button
-          onClick={handleClose}
-          className="flex h-full w-11 items-center justify-center text-muted-foreground hover:bg-red-500 hover:text-white transition-colors"
-          title="Close"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+    <div className="no-drag flex h-full">
+      <button
+        type="button"
+        onClick={handleMinimize}
+        className="flex h-full w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-accent"
+        title="Minimize"
+      >
+        <Minus className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={handleMaximize}
+        className="flex h-full w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-accent"
+        title={maximized ? 'Restore' : 'Maximize'}
+      >
+        {maximized ? <Copy className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+      </button>
+      <button
+        type="button"
+        onClick={handleClose}
+        className="flex h-full w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-red-500 hover:text-white"
+        title="Close"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </div>
   );
 }

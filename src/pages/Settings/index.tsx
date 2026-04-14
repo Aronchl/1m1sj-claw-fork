@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Copy,
   FileText,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -21,8 +22,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/settings';
 import { useGatewayStore } from '@/stores/gateway';
-import { useUpdateStore } from '@/stores/update';
-import { UpdateSettings } from '@/components/settings/UpdateSettings';
+import { useShellUiStore } from '@/stores/shell-ui';
 import {
   getGatewayWsDiagnosticEnabled,
   invokeIpc,
@@ -40,13 +40,24 @@ import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES } from '@/i18n';
 import { hostApiFetch } from '@/lib/host-api';
 import { cn } from '@/lib/utils';
+import wechatSvg from '@/assets/channels/wechat.svg';
+
 type ControlUiInfo = {
   url: string;
   token: string;
   port: number;
 };
 
-export function Settings() {
+type DesktopAuthSessionResponse = {
+  success?: boolean;
+  loggedIn?: boolean;
+  userId?: string | number;
+  nickName?: string;
+  avatarUrl?: string;
+  error?: string;
+};
+
+export function SettingsContent({ section }: { section: 'general' | 'app' }) {
   const { t } = useTranslation('settings');
   const {
     theme,
@@ -71,8 +82,6 @@ export function Settings() {
     setProxyBypassRules,
     autoCheckUpdate,
     setAutoCheckUpdate,
-    autoDownloadUpdate,
-    setAutoDownloadUpdate,
     devModeUnlocked,
     setDevModeUnlocked,
     telemetryEnabled,
@@ -80,8 +89,8 @@ export function Settings() {
   } = useSettingsStore();
 
   const { status: gatewayStatus, restart: restartGateway } = useGatewayStore();
-  const currentVersion = useUpdateStore((state) => state.currentVersion);
-  const updateSetAutoDownload = useUpdateStore((state) => state.setAutoDownload);
+  const openWechatConnectModal = useShellUiStore((s) => s.openWechatConnectModal);
+  const wechatConnectModalOpen = useShellUiStore((s) => s.wechatConnectModalOpen);
   const [controlUiInfo, setControlUiInfo] = useState<ControlUiInfo | null>(null);
   const [openclawCliCommand, setOpenclawCliCommand] = useState('');
   const [openclawCliError, setOpenclawCliError] = useState<string | null>(null);
@@ -101,6 +110,11 @@ export function Settings() {
   const [showLogs, setShowLogs] = useState(false);
   const [logContent, setLogContent] = useState('');
   const [doctorRunningMode, setDoctorRunningMode] = useState<'diagnose' | 'fix' | null>(null);
+  const [desktopProfileLoading, setDesktopProfileLoading] = useState(false);
+  const [desktopNickName, setDesktopNickName] = useState('');
+  const [desktopAvatarUrl, setDesktopAvatarUrl] = useState('');
+  const [desktopLoggedIn, setDesktopLoggedIn] = useState(false);
+  const [desktopLogoutLoading, setDesktopLogoutLoading] = useState(false);
   const [doctorResult, setDoctorResult] = useState<{
     mode: 'diagnose' | 'fix';
     success: boolean;
@@ -122,6 +136,63 @@ export function Settings() {
     } catch {
       setLogContent('(Failed to load logs)');
       setShowLogs(true);
+    }
+  };
+
+  useEffect(() => {
+    if (section !== 'general') return;
+    let cancelled = false;
+    setDesktopProfileLoading(true);
+    void hostApiFetch<DesktopAuthSessionResponse>('/api/desktop-auth/session/verify', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+      .then((result) => {
+        if (cancelled) return;
+        if (!result.success || !result.loggedIn) {
+          setDesktopLoggedIn(false);
+          setDesktopNickName('');
+          setDesktopAvatarUrl('');
+          return;
+        }
+        setDesktopLoggedIn(true);
+        setDesktopNickName((result.nickName || '').trim());
+        setDesktopAvatarUrl((result.avatarUrl || '').trim());
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDesktopLoggedIn(false);
+        setDesktopNickName('');
+        setDesktopAvatarUrl('');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDesktopProfileLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [section, wechatConnectModalOpen]);
+
+  const handleDesktopLogout = async () => {
+    setDesktopLogoutLoading(true);
+    try {
+      const result = await hostApiFetch<DesktopAuthSessionResponse>('/api/desktop-auth/session/logout', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      if (!result.success) {
+        throw new Error(result.error || t('profile.logoutFailed'));
+      }
+      setDesktopLoggedIn(false);
+      setDesktopNickName('');
+      setDesktopAvatarUrl('');
+      toast.success(t('profile.logoutSuccess'));
+    } catch (error) {
+      toast.error(String(error instanceof Error ? error.message : error));
+    } finally {
+      setDesktopLogoutLoading(false);
     }
   };
 
@@ -247,7 +318,7 @@ export function Settings() {
           setOpenclawCliError(null);
         } else {
           setOpenclawCliCommand('');
-          setOpenclawCliError(result.error || 'OpenClaw CLI unavailable');
+          setOpenclawCliError(result.error || '一码一世界 CLI unavailable');
         }
       } catch (error) {
         if (cancelled) return;
@@ -472,30 +543,77 @@ export function Settings() {
   };
 
   return (
-    <div data-testid="settings-page" className="flex flex-col -m-6 dark:bg-background h-[calc(100vh-2.5rem)] overflow-hidden">
-      <div className="w-full max-w-5xl mx-auto flex flex-col h-full p-10 pt-16">
-
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-start justify-between mb-12 shrink-0 gap-4">
-          <div>
-            <h1 className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              {t('title')}
-            </h1>
-            <p className="text-[17px] text-foreground/70 font-medium">
-              {t('subtitle')}
-            </p>
+    <div data-testid="settings-page" className="px-6 py-6 pb-10 space-y-10 max-w-3xl">
+      {section === 'general' && (
+        <>
+          {/* Account / profile */}
+          <div data-testid="settings-profile-section" className="space-y-3">
+            <Label className="text-[15px] font-medium text-foreground/80">{t('profile.sectionTitle')}</Label>
+            <div className="overflow-hidden rounded-2xl border border-black/5 bg-background divide-y divide-black/5 dark:border-white/10 dark:divide-white/10">
+              <div className="flex items-center justify-between gap-4 px-4 py-3.5">
+                <span className="text-[14px] text-foreground">{t('profile.avatar')}</span>
+                {desktopAvatarUrl ? (
+                  <img
+                    src={desktopAvatarUrl}
+                    alt=""
+                    className="h-10 w-10 shrink-0 rounded-full border border-black/10 object-cover dark:border-white/10"
+                  />
+                ) : (
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-muted/40 dark:border-white/10"
+                    aria-hidden
+                  >
+                    <User className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between gap-4 px-4 py-3.5">
+                <span className="text-[14px] text-foreground">{t('profile.username')}</span>
+                <div className="flex min-w-0 items-center gap-2 text-[14px] font-medium text-foreground">
+                  <img src={wechatSvg} alt="" className="h-5 w-5 shrink-0" />
+                  <span className="truncate">
+                    {desktopProfileLoading
+                      ? '...'
+                      : (desktopLoggedIn ? (desktopNickName || t('profile.notLoggedIn')) : t('profile.notLoggedIn'))}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {desktopLoggedIn ? (
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="h-8 rounded-full px-4"
+                  disabled={desktopLogoutLoading}
+                  onClick={() => void handleDesktopLogout()}
+                >
+                  {desktopLogoutLoading ? (
+                    <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
+                  ) : null}
+                  {t('profile.logout')}
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="h-8 rounded-full px-4"
+                  onClick={() => openWechatConnectModal()}
+                >
+                  {t('profile.login')}
+                </Button>
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto pr-2 pb-10 min-h-0 -mr-2 space-y-12">
+          <Separator className="bg-black/5 dark:bg-white/5" />
 
-          {/* Appearance */}
-          <div>
-            <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              {t('appearance.title')}
-            </h2>
-            <div className="space-y-6">
+          {/* Appearance (no duplicate section title — modal nav already says 通用设置) */}
+          <div className="space-y-6">
               <div className="space-y-3">
                 <Label className="text-[15px] font-medium text-foreground/80">{t('appearance.theme')}</Label>
                 <div className="flex flex-wrap gap-2">
@@ -552,14 +670,15 @@ export function Settings() {
                   onCheckedChange={setLaunchAtStartup}
                 />
               </div>
-            </div>
           </div>
+        </>
+      )}
 
-          <Separator className="bg-black/5 dark:bg-white/5" />
-
+      {section === 'app' && (
+        <>
           {/* Gateway */}
           <div>
-            <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+            <h2 className="text-xl font-semibold text-foreground mb-4 tracking-tight">
               {t('gateway.title')}
             </h2>
             <div className="space-y-6">
@@ -627,6 +746,19 @@ export function Settings() {
                 />
               </div>
 
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-[15px] font-medium text-foreground">{t('updates.autoCheck')}</Label>
+                  <p className="text-[13px] text-muted-foreground mt-1">
+                    {t('updates.autoCheckDesc')}
+                  </p>
+                </div>
+                <Switch
+                  checked={autoCheckUpdate}
+                  onCheckedChange={setAutoCheckUpdate}
+                />
+              </div>
+
 
               <div className="flex items-center justify-between">
                 <div>
@@ -664,7 +796,7 @@ export function Settings() {
             <>
               <Separator className="bg-black/5 dark:bg-white/5" />
               <div data-testid="settings-developer-section">
-                <h2 data-testid="settings-developer-title" className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+                <h2 data-testid="settings-developer-title" className="text-xl font-semibold text-foreground mb-4 tracking-tight">
                   {t('developer.title')}
                 </h2>
                 <div className="space-y-8">
@@ -1033,90 +1165,9 @@ export function Settings() {
             </>
           )}
 
-          <Separator className="bg-black/5 dark:bg-white/5" />
+        </>
+      )}
 
-          {/* Updates */}
-          <div>
-            <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              {t('updates.title')}
-            </h2>
-            <div className="space-y-6">
-              <UpdateSettings />
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-[15px] font-medium text-foreground">{t('updates.autoCheck')}</Label>
-                  <p className="text-[13px] text-muted-foreground mt-1">
-                    {t('updates.autoCheckDesc')}
-                  </p>
-                </div>
-                <Switch
-                  checked={autoCheckUpdate}
-                  onCheckedChange={setAutoCheckUpdate}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-[15px] font-medium text-foreground">{t('updates.autoDownload')}</Label>
-                  <p className="text-[13px] text-muted-foreground mt-1">
-                    {t('updates.autoDownloadDesc')}
-                  </p>
-                </div>
-                <Switch
-                  checked={autoDownloadUpdate}
-                  onCheckedChange={(value) => {
-                    setAutoDownloadUpdate(value);
-                    updateSetAutoDownload(value);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <Separator className="bg-black/5 dark:bg-white/5" />
-
-          {/* About */}
-          <div>
-            <h2 className="text-3xl font-serif text-foreground mb-6 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              {t('about.title')}
-            </h2>
-            <div className="space-y-3 text-[14px] text-muted-foreground">
-              <p>
-                <strong className="text-foreground font-semibold">{t('about.appName')}</strong> - {t('about.tagline')}
-              </p>
-              <p>{t('about.basedOn')}</p>
-              <p>{t('about.version', { version: currentVersion })}</p>
-              <div className="flex gap-4 pt-3">
-                <Button
-                  variant="link"
-                  className="h-auto p-0 text-[14px] text-blue-500 hover:text-blue-600 font-medium"
-                  onClick={() => window.electron.openExternal('https://claw-x.com')}
-                >
-                  {t('about.docs')}
-                </Button>
-                <Button
-                  variant="link"
-                  className="h-auto p-0 text-[14px] text-blue-500 hover:text-blue-600 font-medium"
-                  onClick={() => window.electron.openExternal('https://github.com/ValueCell-ai/ClawX')}
-                >
-                  {t('about.github')}
-                </Button>
-                <Button
-                  variant="link"
-                  className="h-auto p-0 text-[14px] text-blue-500 hover:text-blue-600 font-medium"
-                  onClick={() => window.electron.openExternal('https://icnnp7d0dymg.feishu.cn/wiki/UyfOwQ2cAiJIP6kqUW8cte5Bnlc')}
-                >
-                  {t('about.faq')}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
     </div>
   );
 }
-
-export default Settings;

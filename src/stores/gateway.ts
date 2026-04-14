@@ -10,7 +10,6 @@ import type { GatewayStatus } from '../types/gateway';
 
 let gatewayInitPromise: Promise<void> | null = null;
 let gatewayEventUnsubscribers: Array<() => void> | null = null;
-let gatewayReconcileTimer: ReturnType<typeof setInterval> | null = null;
 const gatewayEventDedupe = new Map<string, number>();
 const GATEWAY_EVENT_DEDUPE_TTL_MS = 30_000;
 const LOAD_SESSIONS_MIN_INTERVAL_MS = 1_200;
@@ -67,28 +66,15 @@ function buildGatewayEventDedupeKey(event: Record<string, unknown>): string | nu
   return null;
 }
 
-function getMessageIdDedupeKey(event: Record<string, unknown>): string | null {
-  const state = event.state != null ? String(event.state) : '';
-  if (state !== 'final') return null;
-  const message = event.message;
-  if (message && typeof message === 'object') {
-    const msgId = (message as Record<string, unknown>).id;
-    if (msgId != null) return `final-msgid|${String(msgId)}`;
-  }
-  return null;
-}
-
 function shouldProcessGatewayEvent(event: Record<string, unknown>): boolean {
   const key = buildGatewayEventDedupeKey(event);
-  const msgKey = getMessageIdDedupeKey(event);
-  if (!key && !msgKey) return true;
+  if (!key) return true;
   const now = Date.now();
   pruneGatewayEventDedupe(now);
-  if ((key && gatewayEventDedupe.has(key)) || (msgKey && gatewayEventDedupe.has(msgKey))) {
+  if (gatewayEventDedupe.has(key)) {
     return false;
   }
-  if (key) gatewayEventDedupe.set(key, now);
-  if (msgKey) gatewayEventDedupe.set(msgKey, now);
+  gatewayEventDedupe.set(key, now);
   return true;
 }
 
@@ -190,7 +176,6 @@ function handleGatewayNotification(notification: { method?: string; params?: Rec
             activeRunId: null,
             pendingFinal: false,
             lastUserMessageAt: null,
-            error: null,
           });
         }
       })
@@ -298,45 +283,6 @@ export const useGatewayStore = create<GatewayState>((set, get) => ({
             },
           ));
           gatewayEventUnsubscribers = unsubscribers;
-
-          // Periodic reconciliation safety net: every 30 seconds, check if the
-          // renderer's view of gateway state has drifted from main process truth.
-          // This catches any future one-off IPC delivery failures without adding
-          // a constant polling load (single lightweight IPC invoke per interval).
-          // Clear any previous timer first to avoid leaks during HMR reloads.
-          if (gatewayReconcileTimer !== null) {
-            clearInterval(gatewayReconcileTimer);
-          }
-          gatewayReconcileTimer = setInterval(() => {
-            const ipc = window.electron?.ipcRenderer;
-            if (!ipc) return;
-            ipc.invoke('gateway:status')
-              .then((result: unknown) => {
-                const latest = result as GatewayStatus;
-                const current = get().status;
-                if (latest.state !== current.state) {
-                  console.info(
-                    `[gateway-store] reconciled stale state: ${current.state} → ${latest.state}`,
-                  );
-                  set({ status: latest });
-                }
-              })
-              .catch(() => { /* ignore */ });
-          }, 30_000);
-        }
-
-        // Re-fetch status after IPC listeners are registered to close the race
-        // window: if the gateway transitioned (e.g. starting → running) between
-        // the initial fetch and the IPC listener setup, that event was lost.
-        // A second fetch guarantees we pick up the latest state.
-        try {
-          const refreshed = await hostApiFetch<GatewayStatus>('/api/gateway/status');
-          const current = get().status;
-          if (refreshed.state !== current.state) {
-            set({ status: refreshed });
-          }
-        } catch {
-          // Best-effort; the IPC listener will eventually reconcile.
         }
       } catch (error) {
         console.error('Failed to initialize Gateway:', error);

@@ -1,0 +1,54 @@
+{
+    "title": "Inspiration Square",
+    "emptyCategory": "Nothing here yet — try “All”.",
+    "banners": {
+        "cron": {
+            "title": "Scheduled tasks: auto-summarize trending news"
+        },
+        "travel": {
+            "title": "Easy travel planning"
+        }
+    },
+    "categories": {
+        "all": "All",
+        "office": "Productivity",
+        "study": "Study",
+        "fun": "Fun",
+        "life": "Lifestyle",
+        "media": "Creator",
+        "finance": "Finance"
+    },
+    "cards": {
+        "hotNews": {
+            "title": "Morning news digest",
+            "desc": "Daily briefing of headlines in your field."
+        },
+        "invoice": {
+            "title": "Smart invoice filing",
+            "desc": "Sort receipts by project and date for expenses."
+        },
+        "studyPlan": {
+            "title": "Study plan breakdown",
+            "desc": "Turn goals into tasks with gentle reminders."
+        },
+        "docs": {
+            "title": "Document highlights",
+            "desc": "Summarize long docs and list action items."
+        },
+        "routine": {
+            "title": "Habit nudges",
+            "desc": "Water, breaks, and micro-habits on a schedule."
+        },
+        "travel": {
+            "title": "Trip checklist",
+            "desc": "Draft packing lists and day plans from a destination."
+        }
+    },
+    "modal": {
+        "close": "Close",
+        "sceneTitle": "Use Cases",
+        "sceneTemplate": "\"{{title}}\" is useful in these scenarios: {{desc}}",
+        "promptTemplate": "Create an actionable plan for \"{{title}}\", focusing on: {{desc}}",
+        "useNow": "Use Now"
+    }
+}

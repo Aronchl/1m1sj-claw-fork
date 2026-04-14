@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> | 简体中文 | <a href="README.ja-JP.md">日本語</a> | <a href="README.ru-RU.md">Русский</a>
+  <a href="README.md">English</a> | 简体中文 | <a href="README.ja-JP.md">日本語</a>
 </p>
 
 ---
@@ -106,18 +106,20 @@ ClawX 直接基于官方 **OpenClaw** 核心构建。无需单独安装，我们
 ### 📡 多频道管理
 同时配置和监控多个 AI 频道。每个频道独立运行，允许你为不同任务运行专门的智能体。
 现在每个频道支持多个账号，并可在 Channels 页面直接完成账号绑定到 Agent 与默认账号切换。
-对于自定义频道账号 ID，ClawX 现在会强制校验 OpenClaw 兼容的规范格式（`[a-z0-9_-]`、小写、最长 64 位、且必须以字母或数字开头），避免路由匹配异常。
 ClawX 现在还内置了腾讯官方个人微信渠道插件，可直接在 Channels 页面通过内置二维码流程完成微信连接。
 
 ### ⏰ 定时任务自动化
 调度 AI 任务自动执行。定义触发器、设置时间间隔，让 AI 智能体 7×24 小时不间断工作。
 现在定时任务页面已经可以直接配置外部投递，统一拆成“发送账号”和“接收目标”两个下拉选择。对于已支持的通道，接收目标会从通道目录能力或已知会话历史中自动发现，不需要再手动修改 `jobs.json`。
-
+已知限制：微信当前不在支持的定时任务投递通道列表内。原因是 `openclaw-weixin` 插件的出站发送依赖实时会话里的 `contextToken`，插件本身不支持 cron 这类主动推送场景。
+在应用内创建、且结果仅保留在 ClawX 内的任务，可在任务卡片上点击 **在聊天中查看**，跳转到聊天页打开该任务的独立 cron 会话记录。
 
 ### 🧩 可扩展技能系统
 通过预构建的技能扩展 AI 智能体的能力。在集成的技能面板中浏览、安装和管理技能——无需包管理器。
 ClawX 还会内置预装完整的文档处理技能（`pdf`、`xlsx`、`docx`、`pptx`），在启动时自动部署到托管技能目录（默认 `~/.openclaw/skills`），并在首次安装时默认启用。额外预装技能（`find-skills`、`self-improving-agent`、`tavily-search`、`brave-web-search`）也会默认启用；若缺少必需的 API Key，OpenClaw 会在运行时给出配置错误提示。  
 Skills 页面可展示来自多个 OpenClaw 来源的技能（托管目录、workspace、额外技能目录），并显示每个技能的实际路径，便于直接打开真实安装位置。
+
+构建预装技能（`pnpm run bundle:preinstalled-skills`）时读取 `resources/skills/preinstalled-manifest.json`：不写 `gitHost` 时默认从 Gitee 拉取（`https://gitee.com/<repo>.git`）。仓库内清单指向 Gitee 的 `cbtec/ocow-skills`（`master` 分支；`repoPath` 与 `slug` 对应的一级目录）。若要从 GitHub 或其他同样采用 `owner/repo` 路径的托管拉取，可在条目中显式设置 `"gitHost"`。`repoPath` 为仓库根目录下的相对路径（通常为一级技能目录名）。若拉取失败，请核对 `ref` 是否与远程默认分支一致（`master` / `main`）。
 
 重点搜索技能所需环境变量：
 - `BRAVE_SEARCH_API_KEY`：用于 `brave-web-search`
@@ -126,7 +128,6 @@ Skills 页面可展示来自多个 OpenClaw 来源的技能（托管目录、wor
 ### 🔐 安全的供应商集成
 连接多个 AI 供应商（OpenAI、Anthropic 等），凭证安全存储在系统原生密钥链中。OpenAI 同时支持 API Key 与浏览器 OAuth（Codex 订阅）登录。
 如果你通过 **自定义（Custom）Provider** 对接 OpenAI-compatible 网关，可以在 **设置 → AI Providers → 编辑 Provider** 中配置自定义 `User-Agent`，以提高兼容性。
-如果兼容网关的 `/models` 因非鉴权原因不可用，ClawX 会在校验 API Key 时自动降级为轻量的 `/chat/completions` 或 `/responses` 探测。
 
 ### 🌙 自适应主题
 支持浅色模式、深色模式或跟随系统主题。ClawX 自动适应你的偏好设置。
@@ -163,6 +164,11 @@ pnpm run init
 # 以开发模式启动
 pnpm dev
 ```
+
+### 发布安装包（维护者）
+
+上传到阿里云 OSS 的完整说明与命令表见 [docs/oss-publish.md](docs/oss-publish.md)（`release:latest:*` / `release:beta:*`）。将 RAM 用户的 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` 写入根目录 `.env`；脚本顺序为 `dotenv-cli` → `electron-builder --publish never` → `scripts/upload-release-to-oss.mjs`。若需同时发 GitHub Releases，可在 `electron-builder.yml` 的 `publish` 中增加 `github` 并设置 `GH_TOKEN`。
+
 ### 首次启动
 
 首次启动 ClawX 时，**设置向导** 将引导你完成以下步骤：
@@ -324,7 +330,6 @@ ClawX 采用 **双进程 + Host API 统一接入架构**。渲染进程只调用
 │   ├── i18n/                # 国际化资源
 │   └── types/               # TypeScript 类型定义
 ├── tests/
-│   ├── e2e/                 # Playwright Electron 端到端冒烟测试
 │   └── unit/                # Vitest 单元/集成型测试
 ├── resources/                # 静态资源（图标、图片）
 └── scripts/                  # 构建与工具脚本
@@ -342,8 +347,6 @@ pnpm typecheck            # TypeScript 类型检查
 
 # 测试
 pnpm test                 # 运行单元测试
-pnpm run test:e2e         # 运行 Electron E2E 冒烟测试
-pnpm run test:e2e:headed  # 以可见窗口运行 Electron E2E 测试
 pnpm run comms:replay     # 计算通信回放指标
 pnpm run comms:baseline   # 刷新通信基线快照
 pnpm run comms:compare    # 将回放指标与基线阈值对比
@@ -356,8 +359,6 @@ pnpm package:mac          # 为 macOS 打包
 pnpm package:win          # 为 Windows 打包
 pnpm package:linux        # 为 Linux 打包
 ```
-
-在无头 Linux 环境下，Electron 测试需要显示服务；可使用 `xvfb-run -a pnpm run test:e2e`。
 
 ### 通信回归检查
 

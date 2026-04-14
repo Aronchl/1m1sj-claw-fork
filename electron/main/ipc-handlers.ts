@@ -37,6 +37,7 @@ import { checkUvInstalled, installUv, setupManagedPython } from '../utils/uv-set
 import {
   ensureDingTalkPluginInstalled,
   ensureFeishuPluginInstalled,
+  ensureQQBotPluginInstalled,
   ensureWeComPluginInstalled,
 } from '../utils/plugin-install';
 import { updateSkillConfig, getSkillConfig, getAllSkillConfigs } from '../utils/skill-config';
@@ -48,6 +49,7 @@ import { applyProxySettings } from './proxy';
 import { syncLaunchAtStartupSettingFromStore } from './launch-at-startup';
 import { proxyAwareFetch } from '../utils/proxy-fetch';
 import { getRecentTokenUsageHistory } from '../utils/token-usage';
+import { resolveOfficialSiteUrl } from '../../shared/official-site';
 import { getProviderService } from '../services/providers/provider-service';
 import {
   getOpenClawProviderKey,
@@ -747,10 +749,11 @@ interface GatewayCronJob {
 
 type GatewayCronDelivery = NonNullable<GatewayCronJob['delivery']>;
 
-function getUnsupportedCronDeliveryError(_channel: string | undefined): string | null {
-  // Channel support is gated by the frontend whitelist (TESTED_CRON_DELIVERY_CHANNELS).
-  // No per-channel backend blocks are needed.
-  return null;
+function getUnsupportedCronDeliveryError(channel: string | undefined): string | null {
+  if (!channel) return null;
+  return toUiChannelType(channel) === 'wechat'
+    ? 'WeChat scheduled delivery is not supported because the plugin requires a live conversation context token.'
+    : null;
 }
 
 function normalizeCronDelivery(
@@ -934,9 +937,9 @@ function registerCronHandlers(gatewayManager: GatewayManager): void {
   });
 
   // Create a new cron job
-  // UI-created tasks have no delivery target — results go to the ClawX chat page.
+  // UI-created tasks have no delivery target — results go to the ClawNode chat page.
   // Tasks created via external channels (Feishu, Discord, etc.) are handled
-  // directly by the OpenClaw Gateway and do not pass through this IPC handler.
+  // directly by the 一码一世界 Gateway and do not pass through this IPC handler.
   ipcMain.handle('cron:create', async (_, input: {
     name: string;
     message: string;
@@ -952,7 +955,7 @@ function registerCronHandlers(gatewayManager: GatewayManager): void {
         enabled: input.enabled ?? true,
         wakeMode: 'next-heartbeat',
         sessionTarget: 'isolated',
-        // UI-created jobs deliver results via ClawX WebSocket chat events,
+        // UI-created jobs deliver results via ClawNode WebSocket chat events,
         // not external messaging channels.  Setting mode='none' prevents
         // the Gateway from attempting channel delivery (which would fail
         // with "Channel is required" when no channels are configured).
@@ -1151,7 +1154,6 @@ function registerGatewayHandlers(
       const result = await gatewayManager.rpc(method, params, timeoutMs);
       return { success: true, result };
     } catch (error) {
-      logger.warn(`[gateway:rpc] ${method} failed (timeoutMs=${timeoutMs ?? 30000}): ${String(error)}`);
       return { success: false, error: String(error) };
     }
   });
@@ -1447,10 +1449,10 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
     try {
       const status = getOpenClawStatus();
       if (!status.packageExists) {
-        return { success: false, error: `OpenClaw package not found at: ${status.dir}` };
+        return { success: false, error: `一码一世界 package not found at: ${status.dir}` };
       }
       if (!existsSync(status.entryPath)) {
-        return { success: false, error: `OpenClaw entry script not found at: ${status.entryPath}` };
+        return { success: false, error: `一码一世界 entry script not found at: ${status.entryPath}` };
       }
       return { success: true, command: getOpenClawCliCommand() };
     } catch (error) {
@@ -1497,7 +1499,22 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
           warning: installResult.warning,
         };
       }
-      // QQBot is a built-in channel since OpenClaw 3.31 — no plugin install needed
+      if (channelType === 'qqbot') {
+        const installResult = await ensureQQBotPluginInstalled();
+        if (!installResult.installed) {
+          return {
+            success: false,
+            error: installResult.warning || 'QQ Bot plugin install failed',
+          };
+        }
+        await saveChannelConfig(channelType, config);
+        scheduleGatewayChannelSaveRefresh(channelType, `channel:saveConfig (${channelType})`);
+        return {
+          success: true,
+          pluginInstalled: installResult.installed,
+          warning: installResult.warning,
+        };
+      }
       if (channelType === 'feishu') {
         const installResult = await ensureFeishuPluginInstalled();
         if (!installResult.installed) {
@@ -1998,7 +2015,7 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
 function registerShellHandlers(): void {
   // Open external URL
   ipcMain.handle('shell:openExternal', async (_, url: string) => {
-    await shell.openExternal(url);
+    await shell.openExternal(resolveOfficialSiteUrl(url));
   });
 
   // Open path in file explorer

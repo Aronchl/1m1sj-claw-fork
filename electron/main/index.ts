@@ -33,10 +33,12 @@ import {
   requestQuitLifecycleAction,
 } from './quit-lifecycle';
 import { createSignalQuitHandler } from './signal-quit';
+import { resolveOfficialSiteUrl } from '../../shared/official-site';
 import { acquireProcessInstanceFileLock } from './process-instance-lock';
 import { getSetting } from '../utils/store';
 import { ensureBuiltinSkillsInstalled, ensurePreinstalledSkillsInstalled } from '../utils/skill-config';
 import { ensureAllBundledPluginsInstalled } from '../utils/plugin-install';
+import { ensurePreinstalledAgentsInstalled } from '../utils/agent-config';
 import { startHostApiServer } from '../api/server';
 import { HostEventBus } from '../api/event-bus';
 import { deviceOAuthManager } from '../utils/device-oauth';
@@ -83,7 +85,7 @@ if (process.platform === 'linux') {
 // The losing process must exit immediately so it never reaches Gateway startup.
 const gotElectronLock = isE2EMode ? true : app.requestSingleInstanceLock();
 if (!gotElectronLock) {
-  console.info('[ClawX] Another instance already holds the single-instance lock; exiting duplicate process');
+  console.info('[ClawNode] Another instance already holds the single-instance lock; exiting duplicate process');
   app.exit(0);
 }
 let releaseProcessInstanceFileLock: () => void = () => {};
@@ -104,12 +106,12 @@ if (gotElectronLock && !isE2EMode) {
           ? 'unknown lock format/content'
           : 'unknown owner';
       console.info(
-        `[ClawX] Another instance already holds process lock (${fileLock.lockPath}, ${ownerDescriptor}); exiting duplicate process`,
+        `[ClawNode] Another instance already holds process lock (${fileLock.lockPath}, ${ownerDescriptor}); exiting duplicate process`,
       );
       app.exit(0);
     }
   } catch (error) {
-    console.warn('[ClawX] Failed to acquire process instance file lock; continuing with Electron single-instance lock only', error);
+    console.warn('[ClawNode] Failed to acquire process instance file lock; continuing with Electron single-instance lock only', error);
   }
 }
 const gotTheLock = gotElectronLock && gotFileLock;
@@ -157,7 +159,6 @@ function createWindow(): BrowserWindow {
   const isMac = process.platform === 'darwin';
   const isWindows = process.platform === 'win32';
   const useCustomTitleBar = isWindows;
-  const shouldSkipSetupForE2E = process.env.CLAWX_E2E_SKIP_SETUP === '1';
 
   const win = new BrowserWindow({
     width: 1280,
@@ -184,7 +185,7 @@ function createWindow(): BrowserWindow {
     try {
       const parsed = new URL(url);
       if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
-        shell.openExternal(url);
+        shell.openExternal(resolveOfficialSiteUrl(url));
       } else {
         logger.warn(`Blocked openExternal for disallowed protocol: ${parsed.protocol}`);
       }
@@ -196,20 +197,12 @@ function createWindow(): BrowserWindow {
 
   // Load the app
   if (process.env.VITE_DEV_SERVER_URL) {
-    const rendererUrl = new URL(process.env.VITE_DEV_SERVER_URL);
-    if (shouldSkipSetupForE2E) {
-      rendererUrl.searchParams.set('e2eSkipSetup', '1');
-    }
-    win.loadURL(rendererUrl.toString());
+    win.loadURL(process.env.VITE_DEV_SERVER_URL);
     if (!isE2EMode) {
       win.webContents.openDevTools();
     }
   } else {
-    win.loadFile(join(__dirname, '../../dist/index.html'), {
-      query: shouldSkipSetupForE2E
-        ? { e2eSkipSetup: '1' }
-        : undefined,
-    });
+    win.loadFile(join(__dirname, '../../dist/index.html'));
   }
 
   return win;
@@ -255,7 +248,7 @@ function createMainWindow(): BrowserWindow {
   });
 
   win.on('close', (event) => {
-    if (!isQuitting() && !isE2EMode) {
+    if (!isQuitting()) {
       event.preventDefault();
       win.hide();
     }
@@ -277,7 +270,7 @@ function createMainWindow(): BrowserWindow {
 async function initialize(): Promise<void> {
   // Initialize logger first
   logger.init();
-  logger.info('=== ClawX Application Starting ===');
+    logger.info('=== ClawNode Application Starting ===');
   logger.debug(
     `Runtime: platform=${process.platform}/${process.arch}, electron=${process.versions.electron}, node=${process.versions.node}, packaged=${app.isPackaged}, pid=${process.pid}, ppid=${process.ppid}`
   );
@@ -372,9 +365,16 @@ async function initialize(): Promise<void> {
     });
   }
 
-  // Pre-deploy/upgrade bundled OpenClaw plugins (dingtalk, wecom, feishu, wechat)
+  // Pre-deploy bundled agents from resources/agents/preinstalled-manifest.json.
+  // Existing user-managed agents are preserved; only marked managed agents are upgraded.
+  if (!isE2EMode) {
+    void ensurePreinstalledAgentsInstalled().catch((error) => {
+      logger.warn('Failed to install preinstalled agents:', error);
+    });
+  }
+
+  // Pre-deploy/upgrade bundled OpenClaw plugins (dingtalk, wecom, qqbot, feishu, wechat)
   // to ~/.openclaw/extensions/ so they are always up-to-date after an app update.
-  // Note: qqbot was moved to a built-in channel in OpenClaw 3.31.
   if (!isE2EMode) {
     void ensureAllBundledPluginsInstalled().catch((error) => {
       logger.warn('Failed to install/upgrade bundled plugins:', error);
@@ -387,7 +387,7 @@ async function initialize(): Promise<void> {
     hostEventBus.emit('gateway:status', status);
     if (status.state === 'running' && !isE2EMode) {
       void ensureClawXContext().catch((error) => {
-        logger.warn('Failed to re-merge ClawX context after gateway reconnect:', error);
+        logger.warn('Failed to re-merge ClawNode context after gateway reconnect:', error);
       });
     }
   });
@@ -479,7 +479,7 @@ async function initialize(): Promise<void> {
   // is ready, so ensureClawXContext will retry until the target files appear.
   if (!isE2EMode) {
     void ensureClawXContext().catch((error) => {
-      logger.warn('Failed to merge ClawX context into workspace:', error);
+      logger.warn('Failed to merge ClawNode context into workspace:', error);
     });
   }
 
@@ -523,7 +523,7 @@ if (gotTheLock) {
 
   // When a second instance is launched, focus the existing window instead.
   app.on('second-instance', () => {
-    logger.info('Second ClawX instance detected; redirecting to the existing window');
+    logger.info('Second ClawNode instance detected; redirecting to the existing window');
 
     const focusRequest = requestSecondInstanceFocus(
       mainWindowFocusState,
@@ -556,7 +556,7 @@ if (gotTheLock) {
   });
 
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin' || isE2EMode) {
+    if (process.platform !== 'darwin') {
       app.quit();
     }
   });

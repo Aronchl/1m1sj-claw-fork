@@ -15,12 +15,12 @@ import {
   CheckCircle2,
   XCircle,
   MessageSquare,
+  MessageCircle,
   Loader2,
   Timer,
   History,
   Pause,
   ChevronDown,
-  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,15 +33,17 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { hostApiFetch } from '@/lib/host-api';
 import { useCronStore } from '@/stores/cron';
 import { useGatewayStore } from '@/stores/gateway';
-import { useAgentsStore } from '@/stores/agents';
-import { useChatStore } from '@/stores/chat';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { formatRelativeTime, cn } from '@/lib/utils';
+import type { PageLayout } from '@/lib/page-layout';
+import { pageInnerClass, pageLoadingShellClass, pageShellClass } from '@/lib/page-layout';
 import { toast } from 'sonner';
 import type { CronJob, CronJobCreateInput, ScheduleType } from '@/types/cron';
 import { CHANNEL_ICONS, CHANNEL_NAMES, type ChannelType } from '@/types/channel';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { useNavigate } from 'react-router-dom';
+import { useChatStore } from '@/stores/chat';
 
 // Common cron schedule presets
 const schedulePresets: { key: string; value: string; type: ScheduleType }[] = [
@@ -208,7 +210,7 @@ function getDeliveryAccountDisplayName(account: DeliveryChannelAccount, t: TFunc
     : account.name;
 }
 
-const TESTED_CRON_DELIVERY_CHANNELS = new Set<string>(['feishu', 'telegram', 'qqbot', 'wecom', 'wechat']);
+const TESTED_CRON_DELIVERY_CHANNELS = new Set<string>(['feishu', 'telegram', 'qqbot', 'wecom']);
 
 function isSupportedCronDeliveryChannel(channelType: string): boolean {
   return TESTED_CRON_DELIVERY_CHANNELS.has(channelType);
@@ -246,12 +248,9 @@ interface TaskDialogProps {
 function TaskDialog({ job, configuredChannels, onClose, onSave }: TaskDialogProps) {
   const { t } = useTranslation('cron');
   const [saving, setSaving] = useState(false);
-  const agents = useAgentsStore((s) => s.agents);
 
   const [name, setName] = useState(job?.name || '');
   const [message, setMessage] = useState(job?.message || '');
-  const [selectedAgentId, setSelectedAgentId] = useState(job?.agentId || useChatStore.getState().currentAgentId);
-  const [agentIdChanged, setAgentIdChanged] = useState(false);
   // Extract cron expression string from CronSchedule object or use as-is if string
   const initialSchedule = (() => {
     const s = job?.schedule;
@@ -285,7 +284,8 @@ function TaskDialog({ job, configuredChannels, onClose, onSave }: TaskDialogProp
     || (deliveryMode === 'announce' ? (availableChannels[0]?.channelType || '') : '');
   const unsupportedDeliveryChannel = !!effectiveDeliveryChannel && !isSupportedCronDeliveryChannel(effectiveDeliveryChannel);
   const selectedChannel = availableChannels.find((group) => group.channelType === effectiveDeliveryChannel);
-  const deliveryAccountOptions = (selectedChannel?.accounts ?? []).map((account) => ({
+  const selectedChannelAccounts = Array.isArray(selectedChannel?.accounts) ? selectedChannel.accounts : [];
+  const deliveryAccountOptions = selectedChannelAccounts.map((account) => ({
     accountId: account.accountId,
     displayName: getDeliveryAccountDisplayName(account, t),
   }));
@@ -301,7 +301,7 @@ function TaskDialog({ job, configuredChannels, onClose, onSave }: TaskDialogProp
     || selectedChannel?.defaultAccountId
     || deliveryAccountOptions[0]?.accountId
     || '';
-  const showsAccountSelector = (selectedChannel?.accounts.length ?? 0) > 0;
+  const showsAccountSelector = selectedChannelAccounts.length > 0;
   const selectedResolvedAccountId = effectiveDeliveryAccountId || undefined;
   const availableTargetOptions = currentDeliveryTargetOption
     ? [currentDeliveryTargetOption, ...channelTargetOptions.filter((option) => option.value !== deliveryTarget)]
@@ -411,7 +411,6 @@ function TaskDialog({ job, configuredChannels, onClose, onSave }: TaskDialogProp
         schedule: finalSchedule,
         delivery: finalDelivery,
         enabled,
-        ...(agentIdChanged ? { agentId: selectedAgentId } : {}),
       });
       onClose();
       toast.success(job ? t('toast.updated') : t('toast.created'));
@@ -424,7 +423,7 @@ function TaskDialog({ job, configuredChannels, onClose, onSave }: TaskDialogProp
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <Card className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <Card className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <CardHeader className="flex flex-row items-start justify-between pb-2 shrink-0">
           <div>
             <CardTitle className="text-2xl font-serif font-normal">{job ? t('dialog.editTitle') : t('dialog.createTitle')}</CardTitle>
@@ -458,26 +457,6 @@ function TaskDialog({ job, configuredChannels, onClose, onSave }: TaskDialogProp
               rows={3}
               className="rounded-xl font-mono text-[13px] bg-[#eeece3] dark:bg-muted border-black/10 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:border-primary shadow-sm transition-all text-foreground placeholder:text-foreground/40 resize-none"
             />
-          </div>
-
-          {/* Agent */}
-          <div className="space-y-2.5">
-            <Label htmlFor="agent" className="text-[14px] text-foreground/80 font-bold">{t('dialog.agent')}</Label>
-            <SelectField
-              id="agent"
-              value={selectedAgentId}
-              onChange={(e) => {
-                setSelectedAgentId(e.target.value);
-                setAgentIdChanged(true);
-              }}
-              className="h-[44px] rounded-xl border-black/10 dark:border-white/10 bg-[#eeece3] dark:bg-muted text-[13px]"
-            >
-              {agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </SelectField>
           </div>
 
           {/* Schedule */}
@@ -600,7 +579,7 @@ function TaskDialog({ job, configuredChannels, onClose, onSave }: TaskDialogProp
                     <p className="text-[12px] text-muted-foreground">{t('dialog.noChannels')}</p>
                   )}
                   {unsupportedDeliveryChannel && (
-                    <p className="text-[12px] text-destructive">{t('dialog.deliveryChannelUnsupported', { channel: getChannelDisplayName(effectiveDeliveryChannel) })}</p>
+                    <p className="text-[12px] text-destructive">{t('dialog.deliveryChannelUnsupported')}</p>
                   )}
                   {selectedChannel && (
                     <p className="text-[12px] text-muted-foreground">
@@ -656,7 +635,7 @@ function TaskDialog({ job, configuredChannels, onClose, onSave }: TaskDialogProp
                   <p className="text-[12px] text-muted-foreground">
                     {availableTargetOptions.length > 0
                       ? t('dialog.deliveryTargetDescAuto')
-                      : t('dialog.noDeliveryTargets', { channel: getChannelDisplayName(effectiveDeliveryChannel) })}
+                      : t('dialog.noDeliveryTargets')}
                   </p>
                 </div>
               </div>
@@ -711,9 +690,10 @@ interface CronJobCardProps {
 
 function CronJobCard({ job, deliveryAccountName, onToggle, onEdit, onDelete, onTrigger }: CronJobCardProps) {
   const { t } = useTranslation('cron');
+  const navigate = useNavigate();
+  const switchSession = useChatStore((s) => s.switchSession);
   const [triggering, setTriggering] = useState(false);
-  const agents = useAgentsStore((s) => s.agents);
-  const agentName = agents.find((a) => a.id === job.agentId)?.name ?? job.agentId;
+  const [openingChat, setOpeningChat] = useState(false);
 
   const handleTrigger = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -732,6 +712,33 @@ function CronJobCard({ job, deliveryAccountName, onToggle, onEdit, onDelete, onT
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete();
+  };
+
+  const handleOpenInChat = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpeningChat(true);
+    try {
+      const res = await hostApiFetch<{ sessionKey: string; agentId: string }>(
+        `/api/cron/jobs/${encodeURIComponent(job.id)}/chat-session`,
+      );
+      const sessionKey = res?.sessionKey;
+      if (!sessionKey) {
+        throw new Error('Missing session key');
+      }
+      const { sessions } = useChatStore.getState();
+      if (!sessions.some((s) => s.key === sessionKey)) {
+        useChatStore.setState({
+          sessions: [...sessions, { key: sessionKey, displayName: job.name }],
+        });
+      }
+      switchSession(sessionKey);
+      navigate('/');
+    } catch (error) {
+      console.error('Failed to open cron task in chat:', error);
+      toast.error(t('toast.openChatFailed', { error: error instanceof Error ? error.message : String(error) }));
+    } finally {
+      setOpeningChat(false);
+    }
   };
 
   const deliveryChannel = typeof job.delivery?.channel === 'string' ? job.delivery.channel : '';
@@ -784,6 +791,26 @@ function CronJobCard({ job, deliveryAccountName, onToggle, onEdit, onDelete, onT
           </p>
         </div>
 
+        <div className="mb-3">
+          <button
+            type="button"
+            data-testid="cron-card-open-in-chat"
+            disabled={openingChat}
+            onClick={handleOpenInChat}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] font-medium transition-colors',
+              'text-primary hover:bg-primary/10 disabled:pointer-events-none disabled:opacity-50',
+            )}
+          >
+            {openingChat ? (
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            ) : (
+              <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+            )}
+            {t('card.openInChat')}
+          </button>
+        </div>
+
         {/* Metadata */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-muted-foreground/80 font-medium mb-3">
           {job.delivery?.mode === 'announce' && deliveryChannel && (
@@ -816,11 +843,6 @@ function CronJobCard({ job, deliveryAccountName, onToggle, onEdit, onDelete, onT
               {t('card.next')}: {new Date(job.nextRun).toLocaleString()}
             </span>
           )}
-
-          <span className="flex items-center gap-1.5">
-            <Bot className="h-3.5 w-3.5" />
-            {agentName}
-          </span>
         </div>
 
         {/* Last Run Error */}
@@ -862,7 +884,9 @@ function CronJobCard({ job, deliveryAccountName, onToggle, onEdit, onDelete, onT
   );
 }
 
-export function Cron() {
+export function Cron(props: { layout?: PageLayout } = {}) {
+  const { layout = 'page' } = props;
+  const embed = layout === 'modal';
   const { t } = useTranslation('cron');
   const { jobs, loading, error, fetchJobs, createJob, updateJob, toggleJob, deleteJob, triggerJob } = useCronStore();
   const gatewayStatus = useGatewayStore((state) => state.status);
@@ -926,25 +950,32 @@ export function Cron() {
 
   if (loading) {
     return (
-      <div className="flex flex-col -m-6 dark:bg-background min-h-[calc(100vh-2.5rem)] items-center justify-center">
+      <div data-testid="cron-page" className={pageLoadingShellClass(layout)}>
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col -m-6 dark:bg-background h-[calc(100vh-2.5rem)] overflow-hidden">
-      <div className="w-full max-w-5xl mx-auto flex flex-col h-full p-10 pt-16">
+    <div data-testid="cron-page" className={pageShellClass(layout)}>
+      <div className={pageInnerClass(layout)}>
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-start justify-between mb-12 shrink-0 gap-4">
-          <div>
-            <h1 className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              {t('title')}
-            </h1>
-            <p className="text-[17px] text-foreground/70 font-medium">
-              {t('subtitle')}
-            </p>
-          </div>
+        <div
+          className={cn(
+            'flex flex-col md:flex-row md:items-start justify-between mb-12 shrink-0 gap-4',
+            embed && 'md:justify-end',
+          )}
+        >
+          {!embed && (
+            <div>
+              <h1 className="text-5xl md:text-6xl font-serif text-foreground mb-3 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+                {t('title')}
+              </h1>
+              <p className="text-[17px] text-foreground/70 font-medium">
+                {t('subtitle')}
+              </p>
+            </div>
+          )}
           <div className="flex items-center gap-3 md:mt-2">
             <Button
               variant="outline"

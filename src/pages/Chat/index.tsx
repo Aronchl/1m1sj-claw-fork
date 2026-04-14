@@ -4,23 +4,62 @@
  * via gateway:rpc IPC. Session selector, thinking toggle, and refresh
  * are in the toolbar; messages render with markdown + streaming.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { useChatStore, type RawMessage } from '@/stores/chat';
+import { useChatChromeStore } from '@/stores/chat-chrome';
 import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
-import { hostApiFetch } from '@/lib/host-api';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
-import { ExecutionGraphCard } from './ExecutionGraphCard';
-import { ChatToolbar } from './ChatToolbar';
+import { ChatSubToolbar } from './ChatToolbar';
+import { AgentDetailsSheet } from '@/components/chat/AgentDetailsSheet';
+import { AddInspirationModal } from '@/components/chat/AddInspirationModal';
 import { extractImages, extractText, extractThinking, extractToolUse } from './message-utils';
-import { deriveTaskSteps, parseSubagentCompletionInfo } from './task-visualization';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
+import { isCronSessionKey } from '@/stores/chat/cron-session-utils';
+
+function toContentBlocks(content: unknown): unknown[] {
+  if (Array.isArray(content)) return content;
+  if (content == null) return [];
+  if (typeof content === 'string') return [{ type: 'text', text: content }];
+  return [content];
+}
+
+function mergeAssistantLikeMessages(messages: RawMessage[]): RawMessage[] {
+  const merged: RawMessage[] = [];
+  const isAssistantLike = (m: RawMessage) => m.role !== 'user' && m.role !== 'toolresult';
+
+  for (const msg of messages) {
+    const prev = merged[merged.length - 1];
+    if (!prev || !isAssistantLike(prev) || !isAssistantLike(msg)) {
+      merged.push(msg);
+      continue;
+    }
+
+    const prevBlocks = toContentBlocks(prev.content);
+    const nextBlocks = toContentBlocks(msg.content);
+    const mergedRole: RawMessage['role'] = prev.role === 'assistant' || msg.role === 'assistant'
+      ? 'assistant'
+      : prev.role;
+
+    merged[merged.length - 1] = {
+      ...prev,
+      role: mergedRole,
+      content: [...prevBlocks, ...nextBlocks],
+      timestamp: Math.max(prev.timestamp ?? 0, msg.timestamp ?? 0) || (prev.timestamp ?? msg.timestamp),
+      _attachedFiles: [...(prev._attachedFiles ?? []), ...(msg._attachedFiles ?? [])],
+      isError: Boolean(prev.isError || msg.isError),
+      _rowKey: prev._rowKey || msg._rowKey,
+    };
+  }
+
+  return merged;
+}
 
 export function Chat() {
   const { t } = useTranslation('chat');
@@ -29,8 +68,6 @@ export function Chat() {
 
   const messages = useChatStore((s) => s.messages);
   const currentSessionKey = useChatStore((s) => s.currentSessionKey);
-  const currentAgentId = useChatStore((s) => s.currentAgentId);
-  const sessionLabels = useChatStore((s) => s.sessionLabels);
   const loading = useChatStore((s) => s.loading);
   const sending = useChatStore((s) => s.sending);
   const error = useChatStore((s) => s.error);
@@ -38,14 +75,15 @@ export function Chat() {
   const streamingMessage = useChatStore((s) => s.streamingMessage);
   const streamingTools = useChatStore((s) => s.streamingTools);
   const pendingFinal = useChatStore((s) => s.pendingFinal);
+  const activeRunId = useChatStore((s) => s.activeRunId);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const abortRun = useChatStore((s) => s.abortRun);
   const clearError = useChatStore((s) => s.clearError);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
-  const agents = useAgentsStore((s) => s.agents);
 
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
-  const [childTranscripts, setChildTranscripts] = useState<Record<string, RawMessage[]>>({});
+  const pendingScrollToMessageId = useChatStore((s) => s.pendingScrollToMessageId);
+  const setPendingScrollToMessageId = useChatStore((s) => s.setPendingScrollToMessageId);
 
   const [streamingTimestamp, setStreamingTimestamp] = useState<number>(0);
   const minLoading = useMinLoading(loading && messages.length > 0);
@@ -69,53 +107,43 @@ export function Chat() {
   }, [fetchAgents]);
 
   useEffect(() => {
-    const completions = messages
-      .map((message) => parseSubagentCompletionInfo(message))
-      .filter((value): value is NonNullable<typeof value> => value != null);
-    const missing = completions.filter((completion) => !childTranscripts[completion.sessionId]);
-    if (missing.length === 0) return;
-
-    let cancelled = false;
-    void Promise.all(
-      missing.map(async (completion) => {
-        try {
-          const result = await hostApiFetch<{ success: boolean; messages?: RawMessage[] }>(
-            `/api/sessions/transcript?agentId=${encodeURIComponent(completion.agentId)}&sessionId=${encodeURIComponent(completion.sessionId)}`,
-          );
-          if (!result.success) {
-            console.warn('Failed to load child transcript:', {
-              agentId: completion.agentId,
-              sessionId: completion.sessionId,
-              result,
-            });
-            return null;
-          }
-          return { sessionId: completion.sessionId, messages: result.messages || [] };
-        } catch (error) {
-          console.warn('Failed to load child transcript:', {
-            agentId: completion.agentId,
-            sessionId: completion.sessionId,
-            error,
-          });
-          return null;
-        }
-      }),
-    ).then((results) => {
-      if (cancelled) return;
-      setChildTranscripts((current) => {
-        const next = { ...current };
-        for (const result of results) {
-          if (!result) continue;
-          next[result.sessionId] = result.messages;
-        }
-        return next;
-      });
+    let prevKey = useChatStore.getState().currentSessionKey;
+    const unsub = useChatStore.subscribe((state) => {
+      const nextKey = state.currentSessionKey;
+      if (nextKey !== prevKey) {
+        prevKey = nextKey;
+        useChatChromeStore.getState().setAgentPanelSubjectAgentId(null);
+      }
     });
-
     return () => {
-      cancelled = true;
+      unsub();
+      useChatChromeStore.getState().setAgentPanelSubjectAgentId(null);
     };
-  }, [messages, childTranscripts]);
+  }, []);
+
+  useEffect(() => {
+    const id = pendingScrollToMessageId;
+    if (!id || loading) return;
+    const root = scrollRef.current;
+    if (!root) return;
+    const escaped =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id.replace(/"/g, '\\"');
+    const tryScroll = (): boolean => {
+      const el = root.querySelector(`[data-message-id="${escaped}"]`);
+      if (el && typeof (el as HTMLElement).scrollIntoView === 'function') {
+        (el as HTMLElement).scrollIntoView({ block: 'center', behavior: 'smooth' });
+        setPendingScrollToMessageId(null);
+        return true;
+      }
+      return false;
+    };
+    if (tryScroll()) return;
+    queueMicrotask(() => {
+      if (!tryScroll()) {
+        setPendingScrollToMessageId(null);
+      }
+    });
+  }, [messages, pendingScrollToMessageId, loading, scrollRef, setPendingScrollToMessageId]);
 
   // Update timestamp when sending starts
   useEffect(() => {
@@ -141,187 +169,89 @@ export function Chat() {
   const streamImages = streamMsg ? extractImages(streamMsg) : [];
   const hasStreamImages = streamImages.length > 0;
   const hasStreamToolStatus = streamingTools.length > 0;
-  const shouldRenderStreaming = sending && (hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus);
+
+  const streamId =
+    streamMsg && typeof (streamMsg as { id?: unknown }).id === 'string'
+      ? (streamMsg as { id: string }).id
+      : '';
+  const shouldRenderStreaming =
+    sending &&
+    (hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus);
   const hasAnyStreamContent = hasStreamText || hasStreamThinking || hasStreamTools || hasStreamImages || hasStreamToolStatus;
+  const displayMessages = useMemo(() => mergeAssistantLikeMessages(messages), [messages]);
+  const lastHistoryAssistantLike = [...displayMessages].reverse().find((m) => m.role !== 'toolresult' && m.role !== 'user');
+  const hideAssistantAuxAvatar = Boolean(lastHistoryAssistantLike);
+
+  const streamingRowKey = activeRunId ? `run-${activeRunId}` : (streamId || 'streaming-assistant');
 
   const isEmpty = messages.length === 0 && !sending;
-  const subagentCompletionInfos = messages.map((message) => parseSubagentCompletionInfo(message));
-  const nextUserMessageIndexes = new Array<number>(messages.length).fill(-1);
-  let nextUserMessageIndex = -1;
-  for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
-    nextUserMessageIndexes[idx] = nextUserMessageIndex;
-    if (messages[idx].role === 'user' && !subagentCompletionInfos[idx]) {
-      nextUserMessageIndex = idx;
-    }
-  }
-
-  const userRunCards = messages.flatMap((message, idx) => {
-    if (message.role !== 'user' || subagentCompletionInfos[idx]) return [];
-
-    const nextUserIndex = nextUserMessageIndexes[idx];
-    const segmentEnd = nextUserIndex === -1 ? messages.length : nextUserIndex;
-    const segmentMessages = messages.slice(idx + 1, segmentEnd);
-    const replyIndexOffset = segmentMessages.findIndex((candidate) => candidate.role === 'assistant');
-    const replyIndex = replyIndexOffset === -1 ? null : idx + 1 + replyIndexOffset;
-    const completionInfos = subagentCompletionInfos
-      .slice(idx + 1, segmentEnd)
-      .filter((value): value is NonNullable<typeof value> => value != null);
-    const isLatestOpenRun = nextUserIndex === -1 && (sending || pendingFinal || hasAnyStreamContent);
-    let steps = deriveTaskSteps({
-      messages: segmentMessages,
-      streamingMessage: isLatestOpenRun ? streamingMessage : null,
-      streamingTools: isLatestOpenRun ? streamingTools : [],
-      sending: isLatestOpenRun ? sending : false,
-      pendingFinal: isLatestOpenRun ? pendingFinal : false,
-      showThinking,
-    });
-
-    for (const completion of completionInfos) {
-      const childMessages = childTranscripts[completion.sessionId];
-      if (!childMessages || childMessages.length === 0) continue;
-      const branchRootId = `subagent:${completion.sessionId}`;
-      const childSteps = deriveTaskSteps({
-        messages: childMessages,
-        streamingMessage: null,
-        streamingTools: [],
-        sending: false,
-        pendingFinal: false,
-        showThinking,
-      }).map((step) => ({
-        ...step,
-        id: `${completion.sessionId}:${step.id}`,
-        depth: step.depth + 1,
-        parentId: branchRootId,
-      }));
-
-      steps = [
-        ...steps,
-        {
-          id: branchRootId,
-          label: `${completion.agentId} subagent`,
-          status: 'completed',
-          kind: 'system' as const,
-          detail: completion.sessionKey,
-          depth: 1,
-          parentId: 'agent-run',
-        },
-        ...childSteps,
-      ];
-    }
-
-    if (steps.length === 0) return [];
-
-    const segmentAgentId = currentAgentId;
-    const segmentAgentLabel = agents.find((agent) => agent.id === segmentAgentId)?.name || segmentAgentId;
-    const segmentSessionLabel = sessionLabels[currentSessionKey] || currentSessionKey;
-
-    return [{
-      triggerIndex: idx,
-      replyIndex,
-      active: isLatestOpenRun,
-      agentLabel: segmentAgentLabel,
-      sessionLabel: segmentSessionLabel,
-      segmentEnd: nextUserIndex === -1 ? messages.length - 1 : nextUserIndex - 1,
-      steps,
-    }];
-  });
+  const cronSessionView = isCronSessionKey(currentSessionKey);
 
   return (
-    <div className={cn("relative flex min-h-0 flex-col -m-6 transition-colors duration-500 dark:bg-background")} style={{ height: 'calc(100vh - 2.5rem)' }}>
-      {/* Toolbar */}
-      <div className="flex shrink-0 items-center justify-end px-4 py-2">
-        <ChatToolbar />
-      </div>
+    <div className={cn("relative flex flex-col -m-6 transition-colors duration-500 dark:bg-background")} style={{ height: 'calc(100vh - 2.5rem)' }}>
+      {/* Second row above messages: agent + refresh + thinking (right) */}
+      <ChatSubToolbar />
 
       {/* Messages Area */}
-      <div className="min-h-0 flex-1 overflow-hidden px-4 py-4">
-        <div className="mx-auto flex h-full min-h-0 max-w-6xl flex-col gap-4 lg:flex-row lg:items-stretch">
-          <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-            <div ref={contentRef} className="max-w-4xl space-y-4">
-              {isEmpty ? (
-                <WelcomeScreen />
-              ) : (
-                <>
-                  {messages.map((msg, idx) => {
-                    const suppressToolCards = userRunCards.some((card) =>
-                      idx > card.triggerIndex && idx <= card.segmentEnd,
-                    );
-                    return (
-                    <div
-                      key={msg.id || `msg-${idx}`}
-                      className="space-y-3"
-                      id={`chat-message-${idx}`}
-                      data-testid={`chat-message-${idx}`}
-                    >
-                      <ChatMessage
-                        message={msg}
-                        showThinking={showThinking}
-                        suppressToolCards={suppressToolCards}
-                        suppressProcessAttachments={suppressToolCards}
-                      />
-                      {userRunCards
-                        .filter((card) => card.triggerIndex === idx)
-                        .map((card) => (
-                          <ExecutionGraphCard
-                            key={`graph-${idx}`}
-                            agentLabel={card.agentLabel}
-                            sessionLabel={card.sessionLabel}
-                            steps={card.steps}
-                            active={card.active}
-                            onJumpToTrigger={() => {
-                              document.getElementById(`chat-message-${card.triggerIndex}`)?.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'center',
-                              });
-                            }}
-                            onJumpToReply={() => {
-                              if (card.replyIndex == null) return;
-                              document.getElementById(`chat-message-${card.replyIndex}`)?.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'center',
-                              });
-                            }}
-                          />
-                        ))}
-                    </div>
-                    );
-                  })}
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <div ref={contentRef} className="max-w-4xl mx-auto space-y-4">
+          {isEmpty ? (
+            <WelcomeScreen />
+          ) : (
+            <>
+              {displayMessages.map((msg, idx) => (
+                (() => {
+                  const prev = idx > 0 ? displayMessages[idx - 1] : null;
+                  const prevIsAssistantLike = !!prev && prev.role !== 'user' && prev.role !== 'toolresult';
+                  const currentIsAssistantLike = msg.role !== 'user' && msg.role !== 'toolresult';
+                  const hideAvatar = prevIsAssistantLike && currentIsAssistantLike;
+                  return (
+                <ChatMessage
+                  key={msg._rowKey || msg.id || `msg-${idx}`}
+                  message={msg}
+                  showThinking={showThinking}
+                  cronSession={cronSessionView}
+                  hideAvatar={hideAvatar}
+                />
+                  );
+                })()
+              ))}
 
-                  {/* Streaming message */}
-                  {shouldRenderStreaming && (
-                    <ChatMessage
-                      message={(streamMsg
-                        ? {
-                            ...(streamMsg as Record<string, unknown>),
-                            role: (typeof streamMsg.role === 'string' ? streamMsg.role : 'assistant') as RawMessage['role'],
-                            content: streamMsg.content ?? streamText,
-                            timestamp: streamMsg.timestamp ?? streamingTimestamp,
-                          }
-                        : {
-                            role: 'assistant',
-                            content: streamText,
-                            timestamp: streamingTimestamp,
-                          }) as RawMessage}
-                      showThinking={showThinking}
-                      isStreaming
-                      streamingTools={streamingTools}
-                    />
-                  )}
-
-                  {/* Activity indicator: waiting for next AI turn after tool execution */}
-                  {sending && pendingFinal && !shouldRenderStreaming && (
-                    <ActivityIndicator phase="tool_processing" />
-                  )}
-
-                  {/* Typing indicator when sending but no stream content yet */}
-                  {sending && !pendingFinal && !hasAnyStreamContent && (
-                    <TypingIndicator />
-                  )}
-                </>
+              {/* Streaming message */}
+              {shouldRenderStreaming && (
+                <ChatMessage
+                  key={streamingRowKey}
+                  message={(streamMsg
+                    ? {
+                        ...(streamMsg as Record<string, unknown>),
+                        role: (typeof streamMsg.role === 'string' ? streamMsg.role : 'assistant') as RawMessage['role'],
+                        content: streamMsg.content ?? streamText,
+                        timestamp: streamMsg.timestamp ?? streamingTimestamp,
+                      }
+                    : {
+                        role: 'assistant',
+                        content: streamText,
+                        timestamp: streamingTimestamp,
+                      }) as RawMessage}
+                  showThinking={showThinking}
+                  cronSession={cronSessionView}
+                  hideAvatar={hideAssistantAuxAvatar}
+                  isStreaming
+                  streamingTools={streamingTools}
+                />
               )}
-            </div>
-          </div>
 
+              {/* Activity indicator: waiting for next AI turn after tool execution */}
+              {sending && pendingFinal && !shouldRenderStreaming && (
+                <ActivityIndicator phase="tool_processing" hideAvatar={hideAssistantAuxAvatar} />
+              )}
+
+              {/* Typing indicator when sending but no stream content yet */}
+              {sending && !pendingFinal && !hasAnyStreamContent && (
+                <TypingIndicator hideAvatar={hideAssistantAuxAvatar} />
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -360,6 +290,9 @@ export function Chat() {
           </div>
         </div>
       )}
+
+      <AgentDetailsSheet />
+      <AddInspirationModal />
     </div>
   );
 }
@@ -396,12 +329,16 @@ function WelcomeScreen() {
 
 // ── Typing Indicator ────────────────────────────────────────────
 
-function TypingIndicator() {
+function TypingIndicator({ hideAvatar = false }: { hideAvatar?: boolean }) {
   return (
     <div className="flex gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
-        <Sparkles className="h-4 w-4" />
-      </div>
+      {hideAvatar ? (
+        <div className="h-8 w-8 shrink-0 mt-1" aria-hidden />
+      ) : (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
+          <Sparkles className="h-4 w-4" />
+        </div>
+      )}
       <div className="bg-black/5 dark:bg-white/5 text-foreground rounded-2xl px-4 py-3">
         <div className="flex gap-1">
           <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -415,13 +352,17 @@ function TypingIndicator() {
 
 // ── Activity Indicator (shown between tool cycles) ─────────────
 
-function ActivityIndicator({ phase }: { phase: 'tool_processing' }) {
+function ActivityIndicator({ phase, hideAvatar = false }: { phase: 'tool_processing'; hideAvatar?: boolean }) {
   void phase;
   return (
     <div className="flex gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
-        <Sparkles className="h-4 w-4" />
-      </div>
+      {hideAvatar ? (
+        <div className="h-8 w-8 shrink-0 mt-1" aria-hidden />
+      ) : (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full mt-1 bg-black/5 dark:bg-white/5 text-foreground">
+          <Sparkles className="h-4 w-4" />
+        </div>
+      )}
       <div className="bg-black/5 dark:bg-white/5 text-foreground rounded-2xl px-4 py-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />

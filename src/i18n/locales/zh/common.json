@@ -1,5 +1,17 @@
 {
     "sidebar": {
+        "brand": "ClawNode",
+        "brandTagline": "随时随地，帮您高效干活",
+        "railChat": "对话",
+        "railInspiration": "灵感",
+        "railGrowth": "成长",
+        "railTasks": "任务",
+        "railHelp": "帮助",
+        "railMobile": "移动端",
+        "chatSearchPlaceholder": "搜索",
+        "newAgent": "新建 Agent",
+        "newChatForAgent": "在此 Agent 下新对话",
+        "noSessionsUnderAgent": "暂无对话，点击右侧 + 开始",
         "chat": "聊天",
         "newChat": "新对话",
         "cronTasks": "定时任务",
@@ -11,7 +23,16 @@
         "devConsole": "开发者控制台",
         "models": "模型",
         "deleteSessionConfirm": "确定要删除对话 \"{{label}}\" 吗？",
-        "openClawPage": "OpenClaw 页面"
+        "openClawPage": "一码一世界 页面",
+        "loadMoreSessions": "加载更多",
+        "viewMoreSessions": "查看更多",
+        "sessionHistoryTitle": "对话记录 · {{name}}",
+        "sessionHistorySearchPlaceholder": "搜索对话…",
+        "sessionHistoryFilterAll": "全部",
+        "sessionHistoryFilterDay": "最近一天",
+        "sessionHistoryFilterWeek": "最近一周",
+        "sessionHistoryLoadMore": "加载更多",
+        "sessionHistoryEmptyFiltered": "没有符合条件的对话"
     },
     "actions": {
         "save": "保存",
@@ -53,7 +74,7 @@
     },
     "gateway": {
         "notRunning": "网关未运行",
-        "notRunningDesc": "OpenClaw 网关需要运行才能使用此功能。它将自动启动，或者您可以从设置中启动。",
+        "notRunningDesc": "一码一世界 网关需要运行才能使用此功能。它将自动启动，或者您可以从设置中启动。",
         "warning": "网关未运行。"
     }
 }

@@ -32,11 +32,8 @@ import {
   type ChannelMeta,
   type ChannelConfigField,
 } from '@/types/channel';
-import {
-  buildQrChannelEventName,
-  isCanonicalOpenClawAccountId,
-  usesPluginManagedQrAccounts,
-} from '@/lib/channel-alias';
+import { buildQrChannelEventName, usesPluginManagedQrAccounts } from '@/lib/channel-alias';
+import { normalizeQrImageSource } from '@/lib/qr-image';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import telegramIcon from '@/assets/channels/telegram.svg';
@@ -86,7 +83,6 @@ export function ChannelConfigModal({
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [channelName, setChannelName] = useState('');
   const [accountIdInput, setAccountIdInput] = useState(accountId || '');
-  const [accountIdError, setAccountIdError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -109,10 +105,6 @@ export function ChannelConfigModal({
     : showAccountIdEditor
       ? accountIdInput.trim()
       : (accountId ?? (agentId ? (agentId === 'main' ? 'default' : agentId) : undefined));
-  const shouldLoadExistingConfig = Boolean(
-    selectedType && allowExistingConfig && configuredTypes.includes(selectedType)
-  );
-  const accountIdForConfigLoad = shouldLoadExistingConfig ? resolvedAccountId : undefined;
 
   useEffect(() => {
     setSelectedType(initialSelectedType);
@@ -120,7 +112,6 @@ export function ChannelConfigModal({
 
   useEffect(() => {
     setAccountIdInput(accountId || '');
-    setAccountIdError(null);
   }, [accountId]);
 
   useEffect(() => {
@@ -131,10 +122,10 @@ export function ChannelConfigModal({
       setValidationResult(null);
       setQrCode(null);
       setConnecting(false);
-      setAccountIdError(null);
       return;
     }
 
+    const shouldLoadExistingConfig = allowExistingConfig && configuredTypes.includes(selectedType);
     if (!shouldLoadExistingConfig) {
       setConfigValues({});
       setIsExistingConfig(false);
@@ -157,7 +148,7 @@ export function ChannelConfigModal({
 
     (async () => {
       try {
-        const accountParam = accountIdForConfigLoad ? `?accountId=${encodeURIComponent(accountIdForConfigLoad)}` : '';
+        const accountParam = resolvedAccountId ? `?accountId=${encodeURIComponent(resolvedAccountId)}` : '';
         const result = await hostApiFetch<{ success: boolean; values?: Record<string, string> }>(
           `/api/channels/config/${encodeURIComponent(selectedType)}${accountParam}`
         );
@@ -183,7 +174,7 @@ export function ChannelConfigModal({
     return () => {
       cancelled = true;
     };
-  }, [accountIdForConfigLoad, initialConfigValues, selectedType, shouldLoadExistingConfig, showChannelName]);
+  }, [allowExistingConfig, configuredTypes, initialConfigValues, resolvedAccountId, selectedType, showChannelName]);
 
   useEffect(() => {
     if (selectedType && !loadingConfig && showChannelName && firstInputRef.current) {
@@ -225,23 +216,6 @@ export function ChannelConfigModal({
   useEffect(() => {
     translateRef.current = t;
   }, [t]);
-
-  function normalizeQrImageSource(data: { qr?: string; raw?: string }): string | null {
-    const qr = typeof data.qr === 'string' ? data.qr.trim() : '';
-    if (qr) {
-      if (qr.startsWith('data:image') || qr.startsWith('http://') || qr.startsWith('https://')) {
-        return qr;
-      }
-      return `data:image/png;base64,${qr}`;
-    }
-
-    const raw = typeof data.raw === 'string' ? data.raw.trim() : '';
-    if (!raw) return null;
-    if (raw.startsWith('data:image') || raw.startsWith('http://') || raw.startsWith('https://')) {
-      return raw;
-    }
-    return null;
-  }
 
   useEffect(() => {
     if (!selectedType || meta?.connectionType !== 'qr') return;
@@ -359,28 +333,16 @@ export function ChannelConfigModal({
       if (showAccountIdEditor) {
         const nextAccountId = accountIdInput.trim();
         if (!nextAccountId) {
-          const message = t('account.invalidId');
-          setAccountIdError(message);
-          toast.error(message);
-          setConnecting(false);
-          return;
-        }
-        if (!isCanonicalOpenClawAccountId(nextAccountId)) {
-          const message = t('account.invalidCanonicalId');
-          setAccountIdError(message);
-          toast.error(message);
+          toast.error(t('account.invalidId'));
           setConnecting(false);
           return;
         }
         const duplicateExists = existingAccountIds.some((id) => id === nextAccountId && id !== (accountId || '').trim());
         if (duplicateExists) {
-          const message = t('account.accountIdExists', { accountId: nextAccountId });
-          setAccountIdError(message);
-          toast.error(message);
+          toast.error(t('account.accountIdExists', { accountId: nextAccountId }));
           setConnecting(false);
           return;
         }
-        setAccountIdError(null);
       }
 
       if (meta.connectionType === 'qr') {
@@ -662,20 +624,11 @@ export function ChannelConfigModal({
                   <Input
                     id="account-id"
                     value={accountIdInput}
-                    onChange={(event) => {
-                      setAccountIdInput(event.target.value);
-                      if (accountIdError) {
-                        setAccountIdError(null);
-                      }
-                    }}
+                    onChange={(event) => setAccountIdInput(event.target.value)}
                     placeholder={t('account.customIdPlaceholder')}
-                    className={cn(inputClasses, accountIdError && 'border-destructive/50 focus-visible:ring-destructive/30')}
+                    className={inputClasses}
                   />
-                  {accountIdError ? (
-                    <p className="text-[12px] text-destructive">{accountIdError}</p>
-                  ) : (
-                    <p className="text-[12px] text-muted-foreground">{t('account.customIdHint')}</p>
-                  )}
+                  <p className="text-[12px] text-muted-foreground">{t('account.customIdHint')}</p>
                 </div>
               )}
 

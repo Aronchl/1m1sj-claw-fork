@@ -1,0 +1,54 @@
+{
+    "title": "灵感广场",
+    "emptyCategory": "该分类下暂无示例，试试「全部灵感」。",
+    "banners": {
+        "cron": {
+            "title": "创建定时任务：热点资讯自动汇总"
+        },
+        "travel": {
+            "title": "懒人出游规划"
+        }
+    },
+    "categories": {
+        "all": "全部灵感",
+        "office": "办公提效",
+        "study": "研究学习",
+        "fun": "娱乐游戏",
+        "life": "自律生活",
+        "media": "自媒体营销",
+        "finance": "财务金融"
+    },
+    "cards": {
+        "hotNews": {
+            "title": "热点资讯早报",
+            "desc": "每日自动整理行业要闻，节省浏览时间。"
+        },
+        "invoice": {
+            "title": "发票/单据智能归档",
+            "desc": "按项目与日期归类票据，方便报销与检索。"
+        },
+        "studyPlan": {
+            "title": "学习计划拆解",
+            "desc": "把目标拆成可执行任务并提醒复盘。"
+        },
+        "docs": {
+            "title": "文档要点提取",
+            "desc": "长文快速生成摘要与行动项清单。"
+        },
+        "routine": {
+            "title": "作息与习惯提醒",
+            "desc": "喝水、护眼、站立等小习惯定时提醒。"
+        },
+        "travel": {
+            "title": "行程与清单助手",
+            "desc": "根据目的地生成行李与日程草案。"
+        }
+    },
+    "modal": {
+        "close": "关闭",
+        "sceneTitle": "适用场景",
+        "sceneTemplate": "「{{title}}」适合在这些场景使用：{{desc}}",
+        "promptTemplate": "请基于「{{title}}」帮我生成一个可直接执行的方案，重点参考：{{desc}}",
+        "useNow": "立即使用"
+    }
+}

@@ -5,6 +5,7 @@ import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
 import { getOpenClawConfigDir } from '../../utils/paths';
 import { toOpenClawChannelType, toUiChannelType } from '../../utils/channel-alias';
+import { resolveCronSessionKeyForJob } from '../../utils/chat-transcript-search';
 
 interface GatewayCronJob {
   id: string;
@@ -148,7 +149,11 @@ async function readCronRunLog(jobId: string): Promise<CronRunLogEntry[]> {
     try {
       const entry = JSON.parse(trimmed) as CronRunLogEntry;
       if (!entry || entry.jobId !== jobId) continue;
-      if (entry.action && entry.action !== 'finished') continue;
+      if (entry.action) {
+        const a = String(entry.action).toLowerCase();
+        // Skip non-terminal rows; OpenClaw versions may use different action names.
+        if (['started', 'running', 'pending', 'queued', 'dispatch'].includes(a)) continue;
+      }
       entries.push(entry);
     } catch {
       // Ignore malformed log lines so one bad entry does not hide the rest.
@@ -265,10 +270,11 @@ export function buildCronSessionFallbackMessages(params: {
 type JsonRecord = Record<string, unknown>;
 type GatewayCronDelivery = NonNullable<GatewayCronJob['delivery']>;
 
-function getUnsupportedCronDeliveryError(_channel: string | undefined): string | null {
-  // Channel support is gated by the frontend whitelist (TESTED_CRON_DELIVERY_CHANNELS).
-  // No per-channel backend blocks are needed.
-  return null;
+function getUnsupportedCronDeliveryError(channel: string | undefined): string | null {
+  if (!channel) return null;
+  return toUiChannelType(channel) === 'wechat'
+    ? 'WeChat scheduled delivery is not supported because the plugin requires a live conversation context token.'
+    : null;
 }
 
 function normalizeCronDelivery(
@@ -347,14 +353,6 @@ function buildCronUpdatePatch(input: Record<string, unknown>): Record<string, un
     patch.delivery = normalizeCronDeliveryPatch(patch.delivery);
   }
 
-  if ('agentId' in patch) {
-    const agentId = typeof patch.agentId === 'string' && patch.agentId.trim()
-      ? patch.agentId.trim()
-      : 'main';
-    patch.agentId = agentId;
-    // Keep sessionTarget as isolated when agentId changes
-  }
-
   return patch;
 }
 
@@ -385,9 +383,6 @@ function transformCronJob(job: GatewayCronJob) {
     ? new Date(job.state.nextRunAtMs).toISOString()
     : undefined;
 
-  // Parse agentId from the job's agentId field
-  const agentId = (job as unknown as { agentId?: string }).agentId || 'main';
-
   return {
     id: job.id,
     name: job.name,
@@ -400,7 +395,6 @@ function transformCronJob(job: GatewayCronJob) {
     updatedAt: new Date(job.updatedAtMs).toISOString(),
     lastRun,
     nextRun,
-    agentId,
   };
 }
 
@@ -425,7 +419,7 @@ export async function handleCronRoutes(
 
     try {
       const [jobsResult, runs, sessionEntry] = await Promise.all([
-        ctx.gatewayManager.rpc('cron.list', { includeDisabled: true }, 8000)
+        ctx.gatewayManager.rpc('cron.list', { includeDisabled: true })
           .catch(() => ({ jobs: [] as GatewayCronJob[] })),
         readCronRunLog(parsedSession.jobId),
         readSessionStoreEntry(parsedSession.agentId, sessionKey),
@@ -451,68 +445,53 @@ export async function handleCronRoutes(
     return true;
   }
 
+  if (req.method === 'GET' && url.pathname.startsWith('/api/cron/jobs/') && url.pathname.endsWith('/chat-session')) {
+    const prefix = '/api/cron/jobs/';
+    const mid = url.pathname.slice(prefix.length, -'/chat-session'.length);
+    const id = decodeURIComponent(mid || '').trim();
+    if (!id) {
+      sendJson(res, 400, { success: false, error: 'Missing job id' });
+      return true;
+    }
+    try {
+      const resolved = await resolveCronSessionKeyForJob(id);
+      sendJson(res, 200, { sessionKey: resolved.sessionKey, agentId: resolved.agentId });
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error) });
+    }
+    return true;
+  }
+
   if (url.pathname === '/api/cron/jobs' && req.method === 'GET') {
     try {
-      let jobs: GatewayCronJob[] = [];
-      let usedFallback = false;
-
-      try {
-        // 8s timeout — fail fast when Gateway is busy with AI tasks.
-        const result = await ctx.gatewayManager.rpc('cron.list', { includeDisabled: true }, 8000);
-        const data = result as { jobs?: GatewayCronJob[] };
-        jobs = data?.jobs ?? (Array.isArray(result) ? result as GatewayCronJob[] : []);
-      } catch {
-        // Fallback: read cron.json directly when Gateway RPC fails/times out.
-        try {
-          const cronJsonPath = join(getOpenClawConfigDir(), 'cron', 'cron.json');
-          const raw = await readFile(cronJsonPath, 'utf-8');
-          const parsed = JSON.parse(raw);
-          const fileJobs = Array.isArray(parsed) ? parsed : (parsed?.jobs ?? []);
-          jobs = fileJobs as GatewayCronJob[];
-          usedFallback = true;
-        } catch {
-          // No fallback data available either
-        }
-      }
-
-      // Run repair in background — don't block the response.
-      if (!usedFallback && jobs.length > 0) {
-        const jobsToRepair = jobs.filter((job) => {
-          const isIsolatedAgent =
-            (job.sessionTarget === 'isolated' || !job.sessionTarget) &&
-            job.payload?.kind === 'agentTurn';
-          return (
-            isIsolatedAgent &&
-            job.delivery?.mode === 'announce' &&
-            !job.delivery?.channel
-          );
-        });
-        if (jobsToRepair.length > 0) {
-          // Fire-and-forget: repair in background
-          void (async () => {
-            for (const job of jobsToRepair) {
-              try {
-                await ctx.gatewayManager.rpc('cron.update', {
-                  id: job.id,
-                  patch: { delivery: { mode: 'none' } },
-                });
-              } catch {
-                // ignore per-job repair failure
-              }
-            }
-          })();
-          // Optimistically fix the response data
-          for (const job of jobsToRepair) {
+      const result = await ctx.gatewayManager.rpc('cron.list', { includeDisabled: true });
+      const data = result as { jobs?: GatewayCronJob[] };
+      const jobs = data?.jobs ?? [];
+      for (const job of jobs) {
+        const isIsolatedAgent =
+          (job.sessionTarget === 'isolated' || !job.sessionTarget) &&
+          job.payload?.kind === 'agentTurn';
+        const needsRepair =
+          isIsolatedAgent &&
+          job.delivery?.mode === 'announce' &&
+          !job.delivery?.channel;
+        if (needsRepair) {
+          try {
+            await ctx.gatewayManager.rpc('cron.update', {
+              id: job.id,
+              patch: { delivery: { mode: 'none' } },
+            });
             job.delivery = { mode: 'none' };
             if (job.state?.lastError?.includes('Channel is required')) {
               job.state.lastError = undefined;
               job.state.lastStatus = 'ok';
             }
+          } catch {
+            // ignore per-job repair failure
           }
         }
       }
-
-      sendJson(res, 200, jobs.map((job) => ({ ...transformCronJob(job), ...(usedFallback ? { _fromFallback: true } : {}) })));
+      sendJson(res, 200, jobs.map(transformCronJob));
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error) });
     }
@@ -527,11 +506,7 @@ export async function handleCronRoutes(
         schedule: string;
         delivery?: GatewayCronDelivery;
         enabled?: boolean;
-        agentId?: string;
       }>(req);
-      const agentId = typeof input.agentId === 'string' && input.agentId.trim()
-        ? input.agentId.trim()
-        : 'main';
       const delivery = normalizeCronDelivery(input.delivery);
       const unsupportedDeliveryError = getUnsupportedCronDeliveryError(delivery.channel);
       if (delivery.mode === 'announce' && unsupportedDeliveryError) {
@@ -545,7 +520,6 @@ export async function handleCronRoutes(
         enabled: input.enabled ?? true,
         wakeMode: 'next-heartbeat',
         sessionTarget: 'isolated',
-        agentId,
         delivery,
       });
       sendJson(res, 200, result && typeof result === 'object' ? transformCronJob(result as GatewayCronJob) : result);

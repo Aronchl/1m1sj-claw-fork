@@ -44,9 +44,3 @@ export function normalizeOpenClawAccountId(value: string | null | undefined, fal
   }
   return normalized;
 }
-
-export function isCanonicalOpenClawAccountId(value: string | null | undefined): boolean {
-  const trimmed = (value ?? '').trim();
-  if (!trimmed) return false;
-  return normalizeOpenClawAccountId(trimmed, '') === trimmed;
-}

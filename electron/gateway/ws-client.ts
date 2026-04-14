@@ -24,10 +24,7 @@ export async function probeGatewayReady(
       settled = true;
       clearTimeout(timeout);
       try {
-        // Use terminate() (TCP RST) instead of close() (WS close handshake)
-        // to avoid leaving TIME_WAIT connections on Windows. These probe
-        // WebSockets are short-lived and don't need a graceful close.
-        testWs.terminate();
+        testWs.close();
       } catch {
         // ignore
       }
@@ -71,7 +68,7 @@ export async function waitForGatewayReady(options: {
   retries?: number;
   intervalMs?: number;
 }): Promise<void> {
-  const retries = options.retries ?? 2400;
+  const retries = options.retries ?? 300;
   const intervalMs = options.intervalMs ?? 200;
 
   for (let i = 0; i < retries; i++) {
@@ -98,8 +95,12 @@ export async function waitForGatewayReady(options: {
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 
-  logger.error(`Gateway failed to become ready after ${retries} attempts on port ${options.port}`);
-  throw new Error(`Gateway failed to start after ${retries} retries (port ${options.port})`);
+  // Some Gateway builds can accept WS while delaying/omitting the challenge event
+  // under load. Do not hard-block startup here; let connect() perform the
+  // authoritative handshake and fail/retry through the normal startup flow.
+  logger.warn(
+    `Gateway readiness probe timed out after ${retries} attempts on port ${options.port}; proceeding to connect handshake`,
+  );
 }
 
 export function buildGatewayConnectFrame(options: {
@@ -174,7 +175,7 @@ export async function connectGatewaySocket(options: {
   getToken: () => Promise<string>;
   onHandshakeComplete: (ws: WebSocket) => void;
   onMessage: (message: unknown) => void;
-  onCloseAfterHandshake: (code: number) => void;
+  onCloseAfterHandshake: () => void;
   challengeTimeoutMs?: number;
   connectTimeoutMs?: number;
 }): Promise<WebSocket> {
@@ -311,7 +312,7 @@ export async function connectGatewaySocket(options: {
         return;
       }
       cleanupHandshakeRequest();
-      options.onCloseAfterHandshake(code);
+      options.onCloseAfterHandshake();
     });
 
     ws.on('error', (error) => {

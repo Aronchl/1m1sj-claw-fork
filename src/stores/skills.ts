@@ -171,8 +171,7 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
     } catch (error) {
       console.error('Failed to fetch skills:', error);
       const appError = normalizeAppError(error, { module: 'skills', operation: 'fetch' });
-      // Preserve previous skills on error (stale-while-revalidate).
-      set((prev) => ({ loading: false, error: mapErrorCodeToSkillErrorKey(appError.code, 'fetch'), skills: prev.skills }));
+      set({ loading: false, error: mapErrorCodeToSkillErrorKey(appError.code, 'fetch') });
     }
   },
 

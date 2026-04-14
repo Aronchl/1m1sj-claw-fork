@@ -16,6 +16,8 @@ import enAgents from './locales/en/agents.json';
 import enSkills from './locales/en/skills.json';
 import enCron from './locales/en/cron.json';
 import enSetup from './locales/en/setup.json';
+import enInspiration from './locales/en/inspiration.json';
+import enGrowth from './locales/en/growth.json';
 
 // ZH
 import zhCommon from './locales/zh/common.json';
@@ -27,6 +29,8 @@ import zhAgents from './locales/zh/agents.json';
 import zhSkills from './locales/zh/skills.json';
 import zhCron from './locales/zh/cron.json';
 import zhSetup from './locales/zh/setup.json';
+import zhInspiration from './locales/zh/inspiration.json';
+import zhGrowth from './locales/zh/growth.json';
 
 // JA
 import jaCommon from './locales/ja/common.json';
@@ -38,23 +42,13 @@ import jaAgents from './locales/ja/agents.json';
 import jaSkills from './locales/ja/skills.json';
 import jaCron from './locales/ja/cron.json';
 import jaSetup from './locales/ja/setup.json';
-
-// RU
-import ruCommon from './locales/ru/common.json';
-import ruSettings from './locales/ru/settings.json';
-import ruDashboard from './locales/ru/dashboard.json';
-import ruChat from './locales/ru/chat.json';
-import ruChannels from './locales/ru/channels.json';
-import ruAgents from './locales/ru/agents.json';
-import ruSkills from './locales/ru/skills.json';
-import ruCron from './locales/ru/cron.json';
-import ruSetup from './locales/ru/setup.json';
+import jaInspiration from './locales/ja/inspiration.json';
+import jaGrowth from './locales/ja/growth.json';
 
 export const SUPPORTED_LANGUAGES = [
     { code: 'en', label: 'English' },
     { code: 'zh', label: '中文' },
     { code: 'ja', label: '日本語' },
-    { code: 'ru', label: 'Русский' },
 ] as const satisfies ReadonlyArray<{ code: LanguageCode; label: string }>;
 
 const resources = {
@@ -68,6 +62,8 @@ const resources = {
         skills: enSkills,
         cron: enCron,
         setup: enSetup,
+        inspiration: enInspiration,
+        growth: enGrowth,
     },
     zh: {
         common: zhCommon,
@@ -79,6 +75,8 @@ const resources = {
         skills: zhSkills,
         cron: zhCron,
         setup: zhSetup,
+        inspiration: zhInspiration,
+        growth: zhGrowth,
     },
     ja: {
         common: jaCommon,
@@ -90,17 +88,8 @@ const resources = {
         skills: jaSkills,
         cron: jaCron,
         setup: jaSetup,
-    },
-    ru: {
-        common: ruCommon,
-        settings: ruSettings,
-        dashboard: ruDashboard,
-        chat: ruChat,
-        channels: ruChannels,
-        agents: ruAgents,
-        skills: ruSkills,
-        cron: ruCron,
-        setup: ruSetup,
+        inspiration: jaInspiration,
+        growth: jaGrowth,
     },
 };
 
@@ -112,7 +101,7 @@ i18n
         fallbackLng: 'en',
         supportedLngs: [...SUPPORTED_LANGUAGE_CODES],
         defaultNS: 'common',
-        ns: ['common', 'settings', 'dashboard', 'chat', 'channels', 'agents', 'skills', 'cron', 'setup'],
+        ns: ['common', 'settings', 'dashboard', 'chat', 'channels', 'agents', 'skills', 'cron', 'setup', 'inspiration', 'growth'],
         interpolation: {
             escapeValue: false, // React already escapes
         },

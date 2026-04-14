@@ -176,7 +176,7 @@ export function createMenu(): void {
         {
           label: 'Documentation',
           click: async () => {
-            await shell.openExternal('https://claw-x.com');
+            await shell.openExternal('https://claw.1m1sj.xin/');
           },
         },
         {
@@ -187,7 +187,7 @@ export function createMenu(): void {
         },
         { type: 'separator' },
         {
-          label: 'OpenClaw Documentation',
+          label: '一码一世界 Documentation',
           click: async () => {
             await shell.openExternal('https://docs.openclaw.ai');
           },

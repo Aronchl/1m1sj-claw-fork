@@ -4,7 +4,16 @@ import 'zx/globals';
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const UV_VERSION = '0.10.0';
-const BASE_URL = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}`;
+const DEFAULT_BASE = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}`;
+/** Override when GitHub is unreachable (e.g. mirror). No trailing slash. */
+const BASE_URL = (process.env.BUNDLED_UV_BASE_URL || DEFAULT_BASE).replace(/\/$/, '');
+const BASE_URLS = String(process.env.BUNDLED_UV_BASE_URLS || '')
+  .split(',')
+  .map((item) => item.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+const FETCH_TIMEOUT_MS = Number(process.env.BUNDLED_UV_FETCH_TIMEOUT_MS || 30000);
+const FETCH_RETRIES = Number(process.env.BUNDLED_UV_FETCH_RETRIES || 3);
+const RETRY_DELAY_MS = Number(process.env.BUNDLED_UV_FETCH_RETRY_DELAY_MS || 1500);
 const OUTPUT_BASE = path.join(ROOT_DIR, 'resources', 'bin');
 
 // Mapping Node platforms/archs to uv release naming
@@ -42,6 +51,42 @@ const PLATFORM_GROUPS = {
   'linux': ['linux-x64', 'linux-arm64']
 };
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildCandidateUrls(filename) {
+  const allBases = [...BASE_URLS, BASE_URL];
+  const dedupedBases = [...new Set(allBases)];
+  return dedupedBases.map((base) => `${base}/${filename}`);
+}
+
+async function fetchWithRetry(url) {
+  let lastError;
+  for (let attempt = 1; attempt <= FETCH_RETRIES; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Failed to download: ${response.status} ${response.statusText}`);
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      const isLastAttempt = attempt === FETCH_RETRIES;
+      if (isLastAttempt) {
+        break;
+      }
+      echo(chalk.yellow`⚠️ Download failed (attempt ${attempt}/${FETCH_RETRIES}): ${String(error)}`);
+      await sleep(RETRY_DELAY_MS * attempt);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+  throw lastError;
+}
+
 async function setupTarget(id) {
   const target = TARGETS[id];
   if (!target) {
@@ -52,7 +97,7 @@ async function setupTarget(id) {
   const targetDir = path.join(OUTPUT_BASE, id);
   const tempDir = path.join(ROOT_DIR, 'temp_uv_extract');
   const archivePath = path.join(ROOT_DIR, target.filename);
-  const downloadUrl = `${BASE_URL}/${target.filename}`;
+  const downloadUrls = buildCandidateUrls(target.filename);
 
   echo(chalk.blue`\n📦 Setting up uv for ${id}...`);
 
@@ -64,11 +109,24 @@ async function setupTarget(id) {
 
   try {
     // Download
-    echo`⬇️ Downloading: ${downloadUrl}`;
-    const response = await fetch(downloadUrl);
-    if (!response.ok) throw new Error(`Failed to download: ${response.statusText}`);
-    const buffer = await response.arrayBuffer();
-    await fs.writeFile(archivePath, Buffer.from(buffer));
+    let downloaded = false;
+    let lastError;
+    for (const downloadUrl of downloadUrls) {
+      try {
+        echo`⬇️ Downloading: ${downloadUrl}`;
+        const response = await fetchWithRetry(downloadUrl);
+        const buffer = await response.arrayBuffer();
+        await fs.writeFile(archivePath, Buffer.from(buffer));
+        downloaded = true;
+        break;
+      } catch (error) {
+        lastError = error;
+        echo(chalk.yellow`⚠️ Download source failed: ${downloadUrl}`);
+      }
+    }
+    if (!downloaded) {
+      throw lastError ?? new Error('Failed to download uv archive from all sources.');
+    }
 
     // Extract
     echo`📂 Extracting...`;

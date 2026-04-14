@@ -10,19 +10,29 @@
     "modelLine": "Model: {{model}}{{suffix}}",
     "channelsLine": "频道: {{channels}}",
     "deleteAgent": "删除 Agent",
+    "moreMenu": "更多",
     "settings": "设置",
     "creating": "创建中...",
     "createDialog": {
         "title": "添加 Agent",
-        "description": "输入名称即可创建新 Agent，可选择是否继承主 Agent 的工作区引导文件。",
+        "description": "填写名称、描述、头像与 Agent 设定；可选择是否继承主 Agent 工作区引导文件。",
         "nameLabel": "Agent 名称",
         "namePlaceholder": "Coding Helper",
+        "taglineLabel": "描述",
+        "taglinePlaceholder": "一句话介绍",
+        "avatarLabel": "头像",
+        "avatarUploadSoon": "自定义上传即将支持",
+        "personaLabel": "Agent 设定",
+        "personaPlaceholder": "经历与风格等人设说明…",
+        "defaultTagline": "温润贴心的校园引路人",
+        "defaultPersona": "经历：大学辅导员，管理184个学生。入职第一年被院长表扬「责任心强」，私下被学生称作「林爹」，总有无尽的耐心和贴心对待身边人。\n风格：温润如玉，对任何人和话题都保持温和的态度。耐心细致，共情极强，善于捕捉你的情绪波动。通透豁达，擅长看到表象下的深层本质。",
         "inheritWorkspaceLabel": "继承主 Agent 工作区",
         "inheritWorkspaceDescription": "从主 Agent 复制 SOUL.md、AGENTS.md 等引导文件"
     },
     "deleteDialog": {
         "title": "删除 Agent",
-        "message": "确认从 ClawX 删除 “{{name}}”？这会永久删除该 Agent 及其由 ClawX 管理的工作区、运行时和会话文件。"
+        "message": "确认从 ClawNode 删除 “{{name}}”？这会永久删除该 Agent 及其由 ClawNode 管理的工作区、运行时和会话文件。",
+        "deleting": "正在删除…"
     },
     "settingsDialog": {
         "title": "{{name}} 设置",

@@ -10,6 +10,8 @@ const INVALID_CONFIG_PATTERNS: RegExp[] = [
   /\bconfig invalid\b/i,
   /\bunrecognized key\b/i,
   /\brun:\s*openclaw doctor --fix\b/i,
+  /\bconfig was last written by a newer openclaw\b/i,
+  /\bplugin not found: .*\(stale config entry ignored/i,
 ];
 
 const TRANSIENT_START_ERROR_PATTERNS: RegExp[] = [
@@ -18,8 +20,6 @@ const TRANSIENT_START_ERROR_PATTERNS: RegExp[] = [
   /Gateway process exited before becoming ready/i,
   /Timed out waiting for connect\.challenge/i,
   /Connect handshake timeout/i,
-  // Port occupied after orphan kill: transient, worth retrying with backoff
-  /Port \d+ still occupied after \d+ms/i,
 ];
 
 function normalizeLogLine(value: string): string {

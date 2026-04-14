@@ -75,13 +75,6 @@ function upsertImageCacheEntry(filePath: string, file: Omit<AttachedFileMeta, 'f
   saveImageCache(_imageCache);
 }
 
-function withAttachedFileSource(
-  file: AttachedFileMeta,
-  source: AttachedFileMeta['source'],
-): AttachedFileMeta {
-  return file.source ? file : { ...file, source };
-}
-
 /** Extract plain text from message content (string or content blocks) */
 function getMessageText(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -92,6 +85,29 @@ function getMessageText(content: unknown): string {
       .join('\n');
   }
   return '';
+}
+
+/** Min length so we do not merge intentional short back-to-back replies ("好", "嗯"). */
+export const DEDUPE_CONSECUTIVE_ASSISTANT_MIN_LEN = 24;
+
+/**
+ * Collapse consecutive assistant messages with identical visible text (double final / UI race).
+ */
+function dedupeConsecutiveDuplicateAssistants(messages: RawMessage[]): RawMessage[] {
+  if (messages.length < 2) return messages;
+  const out: RawMessage[] = [];
+  for (const m of messages) {
+    const prev = out[out.length - 1];
+    if (prev && prev.role === 'assistant' && m.role === 'assistant') {
+      const a = getMessageText(prev.content).trim();
+      const b = getMessageText(m.content).trim();
+      if (a.length >= DEDUPE_CONSECUTIVE_ASSISTANT_MIN_LEN && a === b) {
+        continue;
+      }
+    }
+    out.push(m);
+  }
+  return out;
 }
 
 /** Extract media file refs from [media attached: <path> (<mime>) | ...] patterns */
@@ -235,14 +251,11 @@ function extractImagesAsAttachedFiles(content: unknown): AttachedFileMeta[] {
 /**
  * Build an AttachedFileMeta entry for a file ref, using cache if available.
  */
-function makeAttachedFile(
-  ref: { filePath: string; mimeType: string },
-  source: AttachedFileMeta['source'] = 'message-ref',
-): AttachedFileMeta {
+function makeAttachedFile(ref: { filePath: string; mimeType: string }): AttachedFileMeta {
   const cached = _imageCache.get(ref.filePath);
-  if (cached) return { ...cached, filePath: ref.filePath, source };
+  if (cached) return { ...cached, filePath: ref.filePath };
   const fileName = ref.filePath.split(/[\\/]/).pop() || 'file';
-  return { fileName, mimeType: ref.mimeType, fileSize: 0, preview: null, filePath: ref.filePath, source };
+  return { fileName, mimeType: ref.mimeType, fileSize: 0, preview: null, filePath: ref.filePath };
 }
 
 /**
@@ -355,7 +368,7 @@ function enrichWithToolResultFiles(messages: RawMessage[]): RawMessage[] {
           }
         }
       }
-      pending.push(...imageFiles.map((file) => withAttachedFileSource(file, 'tool-result')));
+      pending.push(...imageFiles);
 
       // 2. [media attached: ...] patterns in tool result text output
       const text = getMessageText(msg.content);
@@ -363,12 +376,12 @@ function enrichWithToolResultFiles(messages: RawMessage[]): RawMessage[] {
         const mediaRefs = extractMediaRefs(text);
         const mediaRefPaths = new Set(mediaRefs.map(r => r.filePath));
         for (const ref of mediaRefs) {
-          pending.push(makeAttachedFile(ref, 'tool-result'));
+          pending.push(makeAttachedFile(ref));
         }
         // 3. Raw file paths in tool result text (documents, audio, video, etc.)
         for (const ref of extractRawFilePaths(text)) {
           if (!mediaRefPaths.has(ref.filePath)) {
-            pending.push(makeAttachedFile(ref, 'tool-result'));
+            pending.push(makeAttachedFile(ref));
           }
         }
       }
@@ -445,9 +458,9 @@ function enrichWithCachedImages(messages: RawMessage[]): RawMessage[] {
 
     const files: AttachedFileMeta[] = allRefs.map(ref => {
       const cached = _imageCache.get(ref.filePath);
-      if (cached) return { ...cached, filePath: ref.filePath, source: 'message-ref' };
+      if (cached) return { ...cached, filePath: ref.filePath };
       const fileName = ref.filePath.split(/[\\/]/).pop() || 'file';
-      return { fileName, mimeType: ref.mimeType, fileSize: 0, preview: null, filePath: ref.filePath, source: 'message-ref' };
+      return { fileName, mimeType: ref.mimeType, fileSize: 0, preview: null, filePath: ref.filePath };
     });
     return { ...msg, _attachedFiles: files };
   });
@@ -838,6 +851,7 @@ export {
   toMs,
   clearErrorRecoveryTimer,
   clearHistoryPoll,
+  dedupeConsecutiveDuplicateAssistants,
   extractImagesAsAttachedFiles,
   getMessageText,
   extractMediaRefs,

@@ -99,7 +99,6 @@ import {
   type ProviderTypeInfo,
   getProviderDocsUrl,
   getProviderIconUrl,
-  normalizeProviderApiKeyInput,
   resolveProviderApiKeyForSave,
   resolveProviderModelForSave,
   shouldInvertInDark,
@@ -327,7 +326,7 @@ function WelcomeContent() {
   return (
     <div data-testid="setup-welcome-step" className="text-center space-y-4">
       <div className="mb-4 flex justify-center">
-        <img src={clawxIcon} alt="ClawX" className="h-16 w-16" />
+        <img src={clawxIcon} alt="ClawNode" className="h-16 w-16" />
       </div>
       <h2 className="text-xl font-semibold">{t('welcome.title')}</h2>
       <p className="text-muted-foreground">
@@ -420,7 +419,7 @@ function RuntimeContent({ onStatusChange }: RuntimeContentProps) {
           ...prev,
           openclaw: {
             status: 'error',
-            message: `OpenClaw package not found at: ${openclawStatus.dir}`
+            message: `一码一世界 package not found at: ${openclawStatus.dir}`
           },
         }));
       } else if (!openclawStatus.isBuilt) {
@@ -428,7 +427,7 @@ function RuntimeContent({ onStatusChange }: RuntimeContentProps) {
           ...prev,
           openclaw: {
             status: 'error',
-            message: 'OpenClaw package found but dist is missing'
+            message: '一码一世界 package found but dist is missing'
           },
         }));
       } else {
@@ -437,7 +436,7 @@ function RuntimeContent({ onStatusChange }: RuntimeContentProps) {
           ...prev,
           openclaw: {
             status: 'success',
-            message: `OpenClaw package ready${versionLabel}`
+            message: `一码一世界 package ready${versionLabel}`
           },
         }));
       }
@@ -1010,7 +1009,6 @@ function ProviderContent({
   const isOAuth = selectedProviderData?.isOAuth ?? false;
   const supportsApiKey = selectedProviderData?.supportsApiKey ?? false;
   const useOAuthFlow = isOAuth && (!supportsApiKey || authMode === 'oauth');
-  const normalizedApiKey = normalizeProviderApiKeyInput(apiKey);
 
   const handleValidateAndSave = async () => {
     if (!selectedProvider) return;
@@ -1036,19 +1034,11 @@ function ProviderContent({
     try {
       // Validate key if the provider requires one and a key was entered
       const isApiKeyRequired = requiresKey || (supportsApiKey && authMode === 'apikey');
-      if (isApiKeyRequired && !normalizedApiKey) {
-        setKeyValid(false);
-        onConfiguredChange(false);
-        toast.error(t('provider.invalid'));
-        setValidating(false);
-        return;
-      }
-
-      if (isApiKeyRequired) {
+      if (isApiKeyRequired && apiKey) {
         const result = await invokeIpc(
           'provider:validateKey',
           selectedAccountId || selectedProvider,
-          normalizedApiKey,
+          apiKey,
           {
             baseUrl: baseUrl.trim() || undefined,
             apiProtocol: (selectedProvider === 'custom' || selectedProvider === 'ollama')
@@ -1156,7 +1146,7 @@ function ProviderContent({
   const isApiKeyRequired = requiresKey || (supportsApiKey && authMode === 'apikey');
   const canSubmit =
     selectedProvider
-    && (isApiKeyRequired ? normalizedApiKey.length > 0 : true)
+    && (isApiKeyRequired ? apiKey.length > 0 : true)
     && (showModelIdField ? modelId.trim().length > 0 : true)
     && !useOAuthFlow;
 

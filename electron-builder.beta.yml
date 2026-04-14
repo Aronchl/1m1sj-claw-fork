@@ -1,0 +1,7 @@
+# Beta channel — extend common only (see electron-builder.common.yml header).
+extends: ./electron-builder.common.yml
+
+publish:
+  - provider: generic
+    url: https://bucketclaw.1m1sj.xin/beta
+    useMultipleRangeRequest: false

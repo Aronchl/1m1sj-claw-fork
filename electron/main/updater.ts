@@ -2,7 +2,8 @@
  * Auto-Updater Module
  * Handles automatic application updates using electron-updater
  *
- * Update providers are configured in electron-builder.yml (OSS primary, GitHub fallback).
+ * Update feed URLs use OSS via custom domain (OSS_BASE_URL); objects are uploaded under latest/ or beta/
+ * (electron-builder publish.s3 — see docs/oss-publish.md). Beta: electron-builder.beta.yml (extends common) + semver -beta.n.
  * For prerelease channels (alpha, beta), the feed URL is overridden at runtime
  * to point at the channel-specific OSS directory (e.g. /alpha/, /beta/).
  */
@@ -11,9 +12,10 @@ import { BrowserWindow, app, ipcMain } from 'electron';
 import { logger } from '../utils/logger';
 import { EventEmitter } from 'events';
 import { setQuitting } from './app-state';
+import { detectUpdateChannel } from '../../scripts/lib/updater-feed.mjs';
 
 /** Base CDN URL (without trailing channel path) */
-const OSS_BASE_URL = 'https://oss.intelli-spectrum.com';
+const OSS_BASE_URL = 'https://bucketclaw.1m1sj.xin';
 
 export interface UpdateStatus {
   status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
@@ -30,15 +32,6 @@ export interface UpdaterEvents {
   'download-progress': (progress: ProgressInfo) => void;
   'update-downloaded': (event: UpdateDownloadedEvent) => void;
   'error': (error: Error) => void;
-}
-
-/**
- * Detect the update channel from a semver version string.
- * e.g. "0.1.8-alpha.0" → "alpha", "1.0.0-beta.1" → "beta", "1.0.0" → "latest"
- */
-function detectChannel(version: string): string {
-  const match = version.match(/-([a-zA-Z]+)/);
-  return match ? match[1] : 'latest';
 }
 
 export class AppUpdater extends EventEmitter {
@@ -72,7 +65,7 @@ export class AppUpdater extends EventEmitter {
     // Override feed URL for prerelease channels so that
     // alpha -> /alpha/alpha-mac.yml, beta -> /beta/beta-mac.yml, etc.
     const version = app.getVersion();
-    const channel = detectChannel(version);
+    const channel = detectUpdateChannel(version);
     const feedUrl = `${OSS_BASE_URL}/${channel}`;
 
     logger.info(`[Updater] Version: ${version}, channel: ${channel}, feedUrl: ${feedUrl}`);

@@ -1,0 +1,22 @@
+{
+  "agents": [
+    {
+      "id": "clawx-preset",
+      "name": "标准预设",
+      "version": "1.0.1",
+      "inheritWorkspace": false
+    },
+    {
+      "id": "clawx-coder",
+      "name": "代码助手",
+      "version": "1.0.0",
+      "inheritWorkspace": false
+    },
+    {
+      "id": "clawx-analyst",
+      "name": "分析助手",
+      "version": "1.0.0",
+      "inheritWorkspace": false
+    }
+  ]
+}

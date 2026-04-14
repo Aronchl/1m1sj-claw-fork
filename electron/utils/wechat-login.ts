@@ -204,6 +204,13 @@ async function renderQrPngDataUrl(
   return `data:image/png;base64,${png.toString('base64')}`;
 }
 
+export async function renderQrDataUrlFromText(
+  input: string,
+  opts: { scale?: number; marginModules?: number } = {},
+): Promise<string> {
+  return await renderQrPngDataUrl(input, opts);
+}
+
 function isLoginFresh(login: ActiveLogin): boolean {
   return Date.now() - login.startedAt < ACTIVE_LOGIN_TTL_MS;
 }

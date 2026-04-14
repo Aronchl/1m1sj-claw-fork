@@ -47,9 +47,8 @@
         "mainAccount": "メインアカウント",
         "customIdLabel": "アカウント ID",
         "customIdPlaceholder": "例: feishu-sales-bot",
-        "customIdHint": "同じチャンネル内の複数アカウントを区別するため、英小文字・数字・ハイフン・アンダースコアのみの ID を設定してください。",
+        "customIdHint": "同じチャンネル内の複数アカウントを区別するため、任意の ID を設定できます。",
         "invalidId": "アカウント ID は空にできません",
-        "invalidCanonicalId": "アカウント ID は英小文字・数字・ハイフン・アンダースコアのみ使用でき、先頭は英小文字または数字、最大 64 文字です。",
         "idLabel": "ID: {{id}}",
         "boundTo": "割り当て先: {{agent}}",
         "handledBy": "{{agent}} が処理",
@@ -161,17 +160,17 @@
             ]
         },
         "wechat": {
-            "description": "Tencent 公式の OpenClaw プラグインを使い、QRコードをスキャンして個人 WeChat に接続します",
+            "description": "Tencent 公式の 一码一世界 プラグインを使い、QRコードをスキャンして個人 WeChat に接続します",
             "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/GHYZwuPCriF0gWkXwkFcJ9zon3b",
             "instructions": [
-                "QRコードを生成すると、ClawX が OpenClaw に公式 WeChat プラグインをインストールして有効化します",
+                "QRコードを生成すると、ClawNode が 一码一世界 に公式 WeChat プラグインをインストールして有効化します",
                 "以下の QR コードを WeChat でスキャンし、スマートフォン側で接続を確認します",
                 "接続が完了すると、WeChat に新しい「WeChat ClawBot」チャットが自動で表示されます",
                 "後から同じ QR フローを使って、別の WeChat アカウントを追加したり既存アカウントを再接続したりできます"
             ]
         },
         "dingtalk": {
-            "description": "OpenClaw のチャンネルプラグイン経由で DingTalk に接続します（Stream モード）",
+            "description": "一码一世界 のチャンネルプラグイン経由で DingTalk に接続します（Stream モード）",
             "docsUrl": "https://icnnp7d0dymg.feishu.cn/wiki/Y5eNwiSiZidkLskrwtJc1rUln0b#doxcnDgA78n43DbkiQjI1OqUA7b",
             "fields": {
                 "clientId": {
@@ -196,7 +195,7 @@
                 }
             },
             "instructions": [
-                "まず OpenClaw に dingtalk プラグインをインストールして有効化します",
+                "まず 一码一世界 に dingtalk プラグインをインストールして有効化します",
                 "DingTalk 開発者コンソールで社内アプリを作成し Stream モードを有効にします",
                 "Client ID と Client Secret を入力します（必須）",
                 "必要に応じて Robot Code / Corp ID / Agent ID を入力します"
@@ -369,7 +368,7 @@
             "docsUrl": "https://docs.openclaw.ai/channels/mattermost"
         },
         "qqbot": {
-            "description": "QQ ボットチャンネルに接続します（OpenClaw 3.31 より内蔵）",
+            "description": "@tencent-connect/openclaw-qqbot プラグイン経由で QQ ボットに接続します",
             "fields": {
                 "appId": {
                     "label": "App ID",

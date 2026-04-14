@@ -4,6 +4,7 @@
  */
 import { useEffect, useCallback } from 'react';
 import { Download, RefreshCw, Loader2, Rocket, XCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useUpdateStore } from '@/stores/update';
@@ -27,6 +28,7 @@ export function UpdateSettings() {
     error,
     isInitialized,
     autoInstallCountdown,
+    installPending,
     init,
     checkForUpdates,
     downloadUpdate,
@@ -45,6 +47,11 @@ export function UpdateSettings() {
     await checkForUpdates();
   }, [checkForUpdates, clearError]);
 
+  const handleInstallUpdate = useCallback(async () => {
+    toast.info(t('updates.toast.installStarted'));
+    await installUpdate();
+  }, [installUpdate, t]);
+
   const renderStatusIcon = () => {
     switch (status) {
       case 'checking':
@@ -53,7 +60,11 @@ export function UpdateSettings() {
       case 'available':
         return <Download className="h-4 w-4 text-primary" />;
       case 'downloaded':
-        return <Rocket className="h-4 w-4 text-primary" />;
+        return installPending ? (
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        ) : (
+          <Rocket className="h-4 w-4 text-primary" />
+        );
       case 'error':
         return <RefreshCw className="h-4 w-4 text-destructive" />;
       default:
@@ -64,6 +75,9 @@ export function UpdateSettings() {
   const renderStatusText = () => {
     if (status === 'downloaded' && autoInstallCountdown != null && autoInstallCountdown >= 0) {
       return t('updates.status.autoInstalling', { seconds: autoInstallCountdown });
+    }
+    if (status === 'downloaded' && installPending) {
+      return t('updates.status.installing');
     }
     switch (status) {
       case 'checking':
@@ -115,8 +129,16 @@ export function UpdateSettings() {
             </Button>
           );
         }
+        if (installPending) {
+          return (
+            <Button disabled variant="default" size="sm">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              {t('updates.action.installing')}
+            </Button>
+          );
+        }
         return (
-          <Button onClick={installUpdate} size="sm" variant="default">
+          <Button onClick={() => void handleInstallUpdate()} size="sm" variant="default">
             <Rocket className="h-4 w-4 mr-2" />
             {t('updates.action.install')}
           </Button>
