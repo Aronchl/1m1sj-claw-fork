@@ -106,6 +106,26 @@ async function setSkillsEnabled(skillKeys: string[], enabled: boolean): Promise<
     });
 }
 
+/** Drop openclaw.json skills.entries keys not in the preinstalled manifest (e.g. ClawHub installs). */
+async function pruneSkillsEntriesToManifestSlugs(slugs: string[]): Promise<void> {
+    const allowed = new Set(slugs);
+    return withConfigLock(async () => {
+        const config = await readConfig();
+        if (!config.skills?.entries) {
+            return;
+        }
+        const next: Record<string, SkillEntry> = {};
+        for (const slug of allowed) {
+            const prev = config.skills.entries[slug];
+            if (prev) {
+                next[slug] = prev;
+            }
+        }
+        config.skills.entries = next;
+        await writeConfig(config);
+    });
+}
+
 /**
  * Get skill config
  */
@@ -290,35 +310,16 @@ async function readPreinstalledLockVersions(sourceRoot: string): Promise<Map<str
     }
 }
 
-async function tryReadMarker(markerPath: string): Promise<PreinstalledMarker | null> {
-    if (!existsSync(markerPath)) {
-        return null;
-    }
-    try {
-        const raw = await readFile(markerPath, 'utf-8');
-        const parsed = JSON.parse(raw) as PreinstalledMarker;
-        if (!parsed?.slug || !parsed?.version) {
-            return null;
-        }
-        return parsed;
-    } catch {
-        return null;
-    }
-}
-
 /**
  * Ensure third-party preinstalled skills (bundled in app resources) are
  * deployed to ~/.openclaw/skills/<slug>/ as full directories.
  *
  * Policy:
- * - If skill is missing locally, install it.
- * - If local skill exists without our marker, treat as user-managed and never overwrite.
- * - If marker exists with same version, skip.
- * - If marker exists with a different version, overwrite (strong coverage).
- *
- * Notes on "strong coverage":
- * - We only overwrite when the installed skill has ClawX preinstalled marker.
- * - If the skill exists locally but has no marker, it is treated as user-managed and will not be overwritten.
+ * - On each run, **remove the entire** `~/.openclaw/skills` tree, then install **only**
+ *   skills listed in `resources/skills/preinstalled-manifest.json` from bundled sources.
+ * - ClawHub / manual installs under `skills/` are not preserved (by design).
+ * - `skills.entries` in `openclaw.json` is pruned to manifest slugs only (keys preserved
+ *   for those slugs).
  */
 export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
     const skills = await readPreinstalledManifest();
@@ -334,7 +335,12 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
     const lockVersions = await readPreinstalledLockVersions(sourceRoot);
 
     const targetRoot = join(homedir(), '.openclaw', 'skills');
+    if (existsSync(targetRoot)) {
+        await rm(targetRoot, { recursive: true, force: true });
+    }
     await mkdir(targetRoot, { recursive: true });
+
+    const manifestSlugs = [...new Set(skills.map((s) => s.slug.trim()).filter(Boolean))];
     const toEnable: string[] = [];
 
     for (const spec of skills) {
@@ -346,27 +352,10 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
         }
 
         const targetDir = join(targetRoot, spec.slug);
-        const targetManifest = join(targetDir, 'SKILL.md');
         const markerPath = join(targetDir, PREINSTALLED_MARKER_NAME);
         const desiredVersion = lockVersions.get(spec.slug)
             || (spec.version || 'unknown').trim()
             || 'unknown';
-        const marker = await tryReadMarker(markerPath);
-
-        if (existsSync(targetManifest)) {
-            if (!marker) {
-                // User-managed skill (no ClawX marker). Never overwrite to avoid data loss.
-                logger.info(`Skipping user-managed skill: ${spec.slug}`);
-                continue;
-            }
-            if (marker.version === desiredVersion) {
-                continue;
-            }
-
-            // Strong overwrite: remove targetDir entirely and re-copy from bundled resources.
-            logger.info(`Strong-overwriting preinstalled skill: ${spec.slug} (local marker version=${marker.version}, desired=${desiredVersion})`);
-            await rm(targetDir, { recursive: true, force: true });
-        }
 
         try {
             await mkdir(targetDir, { recursive: true });
@@ -385,6 +374,12 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
         } catch (error) {
             logger.warn(`Failed to install preinstalled skill ${spec.slug}:`, error);
         }
+    }
+
+    try {
+        await pruneSkillsEntriesToManifestSlugs(manifestSlugs);
+    } catch (error) {
+        logger.warn('Failed to prune skills config to manifest slugs:', error);
     }
 
     if (toEnable.length > 0) {

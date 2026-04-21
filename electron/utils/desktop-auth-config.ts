@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
-import { OFFICIAL_SITE_URL } from '../../shared/official-site';
 
 const DEFAULT_DESKTOP_AUTH_APP_ID = '10001';
+const DEFAULT_DESKTOP_AUTH_BASE_URL = 'https://id3.1m1sj.xin';
 
 let cachedDotenv: Record<string, string> | null = null;
 
@@ -57,7 +57,7 @@ function readEnvWithDotenvFallback(key: string): string {
 export function resolveDesktopAuthBaseUrl(): string {
   const fromEnv = readEnvWithDotenvFallback('CLAWX_DESKTOP_AUTH_BASE_URL');
   if (fromEnv) return fromEnv.replace(/\/+$/, '');
-  return OFFICIAL_SITE_URL.replace(/\/+$/, '');
+  return DEFAULT_DESKTOP_AUTH_BASE_URL.replace(/\/+$/, '');
 }
 
 export function resolveDesktopAuthAppId(): string {

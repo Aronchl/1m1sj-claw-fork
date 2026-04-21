@@ -42,6 +42,9 @@
         "badge": "定期",
         "avatarHint": "定期タスクのスレッドです"
     },
+    "session": {
+        "deleteFailed": "会話を削除できません：{{error}}"
+    },
     "agentEdit": {
         "title": "Agent を編集",
         "nameRequired": "名前を入力してください",
@@ -57,14 +60,12 @@
     "agentDetails": {
         "sheetTitle": "Agent 詳細",
         "collapse": "閉じる",
-        "editProfile": "名前とひとことを編集",
+        "editProfile": "プロフィールを編集",
         "personaSection": "Agent 指示",
-        "editPersona": "指示を編集",
-        "personaPlaceholder": "背景・トーン・制約など…",
-        "cancel": "キャンセル",
-        "save": "保存",
-        "personaSaved": "この端末に保存しました",
-        "personaEmpty": "タップして指示を追加（端末のみ）",
+        "identityFromFile": "ワークスペースの IDENTITY.md（読み取り専用）",
+        "identityLoading": "読み込み中…",
+        "identityError": "IDENTITY.md を読み取れませんでした",
+        "identityEmpty": "IDENTITY.md にまだ内容がありません",
         "inspirationSection": "インスピレーション",
         "addInspiration": "+ インスピレーションを追加",
         "defaultTagline": "アシスタント"

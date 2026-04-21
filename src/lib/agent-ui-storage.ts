@@ -11,6 +11,25 @@ export type AgentUiExtras = {
 
 const KEY = 'clawx.agentUi.v1';
 
+const DEFAULT_EXTRAS: AgentUiExtras = {
+  tagline: '',
+  persona: '',
+  avatarIndex: 0,
+};
+
+const listeners = new Set<() => void>();
+let agentUiVersion = 0;
+
+export function subscribeAgentUi(onStoreChange: () => void): () => void {
+  listeners.add(onStoreChange);
+  return () => listeners.delete(onStoreChange);
+}
+
+function notifyAgentUiListeners() {
+  agentUiVersion += 1;
+  listeners.forEach((listener) => listener());
+}
+
 function readAll(): Record<string, AgentUiExtras> {
   try {
     const raw = localStorage.getItem(KEY);
@@ -24,13 +43,7 @@ function readAll(): Record<string, AgentUiExtras> {
 
 export function getAgentUiExtras(agentId: string): AgentUiExtras {
   const all = readAll();
-  return (
-    all[agentId] ?? {
-      tagline: '',
-      persona: '',
-      avatarIndex: 0,
-    }
-  );
+  return all[agentId] ?? DEFAULT_EXTRAS;
 }
 
 export function setAgentUiExtras(agentId: string, patch: Partial<AgentUiExtras>): AgentUiExtras {
@@ -38,5 +51,11 @@ export function setAgentUiExtras(agentId: string, patch: Partial<AgentUiExtras>)
   const next = { ...getAgentUiExtras(agentId), ...patch };
   all[agentId] = next;
   localStorage.setItem(KEY, JSON.stringify(all));
+  notifyAgentUiListeners();
   return next;
+}
+
+/** Used by `useAgentUiExtras` for `useSyncExternalStore` snapshot. */
+export function getAgentUiStoreVersion(): number {
+  return agentUiVersion;
 }

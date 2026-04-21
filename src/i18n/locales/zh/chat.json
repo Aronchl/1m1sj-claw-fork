@@ -42,6 +42,9 @@
         "badge": "定时任务",
         "avatarHint": "当前为定时任务会话"
     },
+    "session": {
+        "deleteFailed": "无法删除会话：{{error}}"
+    },
     "agentEdit": {
         "title": "编辑 Agent 信息",
         "nameRequired": "请填写名称",
@@ -57,14 +60,12 @@
     "agentDetails": {
         "sheetTitle": "Agent 详情",
         "collapse": "收起",
-        "editProfile": "编辑名称与描述",
+        "editProfile": "编辑资料",
         "personaSection": "Agent 设定",
-        "editPersona": "编辑设定",
-        "personaPlaceholder": "背景、经历、风格等…",
-        "cancel": "取消",
-        "save": "保存",
-        "personaSaved": "已保存在本机",
-        "personaEmpty": "点击添加 Agent 设定（仅本机保存）",
+        "identityFromFile": "来自工作区 IDENTITY.md（只读）",
+        "identityLoading": "正在读取…",
+        "identityError": "无法读取 IDENTITY.md",
+        "identityEmpty": "工作区中暂无内容或文件不存在",
         "inspirationSection": "灵感",
         "addInspiration": "+ 添加灵感",
         "defaultTagline": "助手"

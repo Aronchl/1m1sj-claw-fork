@@ -75,7 +75,11 @@ const MAXIN_QR_OVERLAY_CLASS =
 
 function normalizeDesktopAuthErrorMessage(raw: unknown, t: (k: string, o?: Record<string, unknown>) => string): string {
   const message = String(raw instanceof Error ? raw.message : raw);
-  if (message.includes('CLAWX_DESKTOP_AUTH_APP_ID')) {
+  if (
+    message.includes('CLAWX_DESKTOP_AUTH_APP_ID')
+    || message.includes('missing appid')
+    || message.includes('缺少appid')
+  ) {
     return t('maxinConnect.notConfiguredHint', {
       defaultValue: '当前版本暂未配置一码登录，请联系管理员或使用其他登录方式。',
     });

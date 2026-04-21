@@ -147,8 +147,8 @@
 | `agents/<agentId>/agent/models.json` | 该 Agent 的模型选用等持久化（openclaw-auth）。 |
 | `agents/<agentId>/sessions/` | 会话转录与索引目录。 |
 | `agents/<agentId>/sessions/sessions.json` | 会话列表/键与转录文件名的映射；删除会话、cron 读会话等使用（sessions 路由、cron 路由、ipc-handlers）。 |
-| `agents/<agentId>/sessions/<id>.jsonl` | 会话 JSONL 转录正文（聊天与工具记录）。 |
-| `agents/<agentId>/sessions/<id>.deleted.jsonl` | 在 UI/API 删除会话时，将原 `.jsonl` 重命名而来，表示已删除会话（sessions 路由）。 |
+| `agents/<agentId>/sessions/<id>.jsonl` | 会话 JSONL 转录正文（聊天与工具记录）。在应用中删除会话时会**物理删除**该文件（见 `session-transcript-delete`）。 |
+| `agents/<agentId>/sessions/<id>.deleted.jsonl` | 旧版软删遗留：历史上由重命名 `*.jsonl` 而来。当前 UI/API **物理删除**会话时会同时尝试删除同 id 的 `*.jsonl` 与 `*.deleted.jsonl`（`session-transcript-delete` / sessions 路由）；文件删除失败时不会改写 `sessions.json`，侧栏也不会移除该会话。 |
 | `agents/<agentId>/sessions/<name>.jsonl.reset.<suffix>` | 会话重置/分支类转录命名；用量统计仍会扫描（token-usage-core）。 |
 | `agents/<agentId>/sessions/.openclaw-weixin-sync/` | 遗留微信同步目录（channel-config `LEGACY_WECHAT_SYNC_DIR`，与旧 `default` 会话布局相关）。 |
 | `credentials/` | 渠道登录凭据根（与 `extensions` 内插件并存）。 |
@@ -164,10 +164,10 @@
 | `extensions/<插件名>/package.json` | npm 包元数据；config-sync 可读版本号。 |
 | `extensions/<插件名>/…` | 插件自身代码、node_modules、资源等（随插件变化）。 |
 | `extensions/discord/`、`extensions/telegram/` | 若曾被旧版本拷入，启动时会被**整目录删除**，以免覆盖内置实现（config-sync `BUILTIN_CHANNEL_EXTENSIONS`）；**非正常长期保留结构**。 |
-| `skills/` | 技能包根；ClawX 预装技能、ClawHub 安装技能均落此（skill-config、README）。 |
+| `skills/` | 技能包根；**每次启动**由 ClawX **整目录清空**后仅按 `resources/skills/preinstalled-manifest.json` 从安装包重装（不保留 ClawHub/手动安装的技能目录；`openclaw.json` 的 `skills.entries` 也会裁到清单 slug）（skill-config）。 |
 | `skills/<slug>/` | 单个技能目录（slug 为技能 id）。 |
 | `skills/<slug>/SKILL.md` | 技能主文档（必须）。 |
-| `skills/<slug>/.clawx-preinstalled.json` | ClawX 预装技能版本标记，用于升级时强覆盖策略（skill-config）。 |
+| `skills/<slug>/.clawx-preinstalled.json` | ClawX 预装技能版本标记（每次重装后写入）。 |
 | `skills/<slug>/…` | 技能附带的脚本、资源等。 |
 | `media/` | 媒体相关根。 |
 | `media/outbound/` | 发往渠道前的文件暂存（files 路由、ipc-handlers）。 |

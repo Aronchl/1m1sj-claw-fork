@@ -38,6 +38,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import type { AgentSummary } from '@/types/agent';
+import { AgentAvatarBubble } from '@/components/agent/AgentAvatarBubble';
 import logoSvg from '@/assets/logo.svg';
 import { ChatSearchModal } from '@/components/chat/ChatSearchModal';
 import { AgentSessionsHistorySheet } from '@/components/layout/AgentSessionsHistorySheet';
@@ -420,7 +421,6 @@ export function Sidebar() {
                 rows.length > SIDEBAR_AGENT_SESSIONS_INITIAL &&
                 !listExpandedInSidebar;
               const showViewMoreFooter = rows.length > 0 && !showLoadMoreFooter;
-              const initial = name.trim().charAt(0).toUpperCase() || '?';
               const unread = countUnreadSessionsUnderAgent(
                 agentId,
                 sessions,
@@ -460,20 +460,7 @@ export function Sidebar() {
                         toggleAgentCollapsed(agentId);
                       }}
                     >
-                      <div
-                        className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold text-white shadow-sm',
-                          agentId === 'main' || agentId === defaultAgentId
-                            ? 'bg-gradient-to-br from-red-500 to-red-600'
-                            : 'bg-gradient-to-br from-slate-500 to-slate-700 dark:from-slate-600 dark:to-slate-800',
-                        )}
-                      >
-                        {agentId === 'main' || agentId === defaultAgentId ? (
-                          <img src={logoSvg} alt="" className="h-5 w-5 object-contain brightness-0 invert" />
-                        ) : (
-                          initial
-                        )}
-                      </div>
+                      <AgentAvatarBubble agentId={agentId} displayName={name} />
                       <div className="min-w-0 flex-1 pt-0.5">
                         <div className="flex min-w-0 items-center gap-1.5">
                           <div className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-tight text-foreground">

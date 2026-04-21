@@ -1,70 +1,6 @@
 {
   "skills": [
     {
-      "slug": "pdf",
-      "repo": "cbtec/ocow-skills",
-      "repoPath": "pdf",
-      "ref": "master",
-      "version": "main",
-      "autoEnable": true
-    },
-    {
-      "slug": "xlsx",
-      "repo": "cbtec/ocow-skills",
-      "repoPath": "xlsx",
-      "ref": "master",
-      "version": "main",
-      "autoEnable": true
-    },
-    {
-      "slug": "docx",
-      "repo": "cbtec/ocow-skills",
-      "repoPath": "docx",
-      "ref": "master",
-      "version": "main",
-      "autoEnable": true
-    },
-    {
-      "slug": "pptx",
-      "repo": "cbtec/ocow-skills",
-      "repoPath": "pptx",
-      "ref": "master",
-      "version": "main",
-      "autoEnable": true
-    },
-    {
-      "slug": "find-skills",
-      "repo": "cbtec/ocow-skills",
-      "repoPath": "find-skills",
-      "ref": "master",
-      "version": "main",
-      "autoEnable": true
-    },
-    {
-      "slug": "self-improving-agent",
-      "repo": "cbtec/ocow-skills",
-      "repoPath": "self-improving-agent",
-      "ref": "master",
-      "version": "main",
-      "autoEnable": true
-    },
-    {
-      "slug": "tavily-search",
-      "repo": "cbtec/ocow-skills",
-      "repoPath": "tavily-search",
-      "ref": "master",
-      "version": "main",
-      "autoEnable": true
-    },
-    {
-      "slug": "brave-web-search",
-      "repo": "cbtec/ocow-skills",
-      "repoPath": "brave-web-search",
-      "ref": "master",
-      "version": "main",
-      "autoEnable": true
-    },
-    {
       "slug": "ocow-archive-security-center",
       "repo": "cbtec/ocow-skills",
       "repoPath": "ocow-archive-security-center",
@@ -76,6 +12,14 @@
       "slug": "ocow-batch-processor",
       "repo": "cbtec/ocow-skills",
       "repoPath": "ocow-batch-processor",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
+      "slug": "ocow-brave-web-search",
+      "repo": "cbtec/ocow-skills",
+      "repoPath": "ocow-brave-web-search",
       "ref": "master",
       "version": "main",
       "autoEnable": true
@@ -108,6 +52,14 @@
       "slug": "ocow-community-culture-hub",
       "repo": "cbtec/ocow-skills",
       "repoPath": "ocow-community-culture-hub",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
+      "slug": "ocow-community-portal-manager",
+      "repo": "cbtec/ocow-skills",
+      "repoPath": "ocow-community-portal-manager",
       "ref": "master",
       "version": "main",
       "autoEnable": true
@@ -169,6 +121,14 @@
       "autoEnable": true
     },
     {
+      "slug": "ocow-docx",
+      "repo": "cbtec/ocow-skills",
+      "repoPath": "ocow-docx",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
       "slug": "ocow-donation-coordinator",
       "repo": "cbtec/ocow-skills",
       "repoPath": "ocow-donation-coordinator",
@@ -196,6 +156,14 @@
       "slug": "ocow-finance-tracker",
       "repo": "cbtec/ocow-skills",
       "repoPath": "ocow-finance-tracker",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
+      "slug": "ocow-find-skills",
+      "repo": "cbtec/ocow-skills",
+      "repoPath": "ocow-find-skills",
       "ref": "master",
       "version": "main",
       "autoEnable": true
@@ -241,6 +209,22 @@
       "autoEnable": true
     },
     {
+      "slug": "ocow-pdf",
+      "repo": "cbtec/ocow-skills",
+      "repoPath": "ocow-pdf",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
+      "slug": "ocow-pptx",
+      "repo": "cbtec/ocow-skills",
+      "repoPath": "ocow-pptx",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
       "slug": "ocow-pptx-master",
       "repo": "cbtec/ocow-skills",
       "repoPath": "ocow-pptx-master",
@@ -260,6 +244,14 @@
       "slug": "ocow-product-packager",
       "repo": "cbtec/ocow-skills",
       "repoPath": "ocow-product-packager",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
+      "slug": "ocow-self-improving-agent",
+      "repo": "cbtec/ocow-skills",
+      "repoPath": "ocow-self-improving-agent",
       "ref": "master",
       "version": "main",
       "autoEnable": true
@@ -305,6 +297,14 @@
       "autoEnable": true
     },
     {
+      "slug": "ocow-tavily-search",
+      "repo": "cbtec/ocow-skills",
+      "repoPath": "ocow-tavily-search",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
       "slug": "ocow-team-collaboration",
       "repo": "cbtec/ocow-skills",
       "repoPath": "ocow-team-collaboration",
@@ -316,6 +316,14 @@
       "slug": "ocow-workflow-automation",
       "repo": "cbtec/ocow-skills",
       "repoPath": "ocow-workflow-automation",
+      "ref": "master",
+      "version": "main",
+      "autoEnable": true
+    },
+    {
+      "slug": "ocow-xlsx",
+      "repo": "cbtec/ocow-skills",
+      "repoPath": "ocow-xlsx",
       "ref": "master",
       "version": "main",
       "autoEnable": true

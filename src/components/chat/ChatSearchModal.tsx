@@ -9,7 +9,7 @@ import { hostApiFetch } from '@/lib/host-api';
 import { useChatStore } from '@/stores/chat';
 import { useAgentsStore } from '@/stores/agents';
 import type { AgentSummary } from '@/types/agent';
-import logoSvg from '@/assets/logo.svg';
+import { AgentAvatarBubble } from '@/components/agent/AgentAvatarBubble';
 
 export type ChatSearchTab = 'all' | 'agent' | 'chat' | 'cron';
 
@@ -100,7 +100,6 @@ export function ChatSearchModal({
   const { t } = useTranslation('chat');
   const navigate = useNavigate();
   const switchSession = useChatStore((s) => s.switchSession);
-  const defaultAgentId = useAgentsStore((s) => s.defaultAgentId);
   const agents = useAgentsStore((s) => s.agents);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
   const safeAgents = Array.isArray(agents) ? agents : [];
@@ -328,7 +327,6 @@ export function ChatSearchModal({
                   {rows.map((hit, idx) => {
                     const agentId = hit.agentId || 'main';
                     const name = agentNameById[agentId] || agentId;
-                    const initial = name.trim().charAt(0).toUpperCase() || '?';
                     const timeStr = hit.timestampMs
                       ? new Date(hit.timestampMs).toLocaleTimeString(undefined, {
                           hour: '2-digit',
@@ -342,20 +340,11 @@ export function ChatSearchModal({
                           onClick={() => onPick(hit)}
                           className="flex w-full items-start gap-2.5 rounded-lg border border-transparent px-2 py-2 text-left transition-colors hover:border-black/8 hover:bg-white/70 dark:hover:border-white/10 dark:hover:bg-white/5"
                         >
-                          <div
-                            className={cn(
-                              'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white shadow-sm',
-                              agentId === 'main' || agentId === defaultAgentId
-                                ? 'bg-gradient-to-br from-red-500 to-red-600'
-                                : 'bg-gradient-to-br from-slate-500 to-slate-700 dark:from-slate-600 dark:to-slate-800',
-                            )}
-                          >
-                            {agentId === 'main' || agentId === defaultAgentId ? (
-                              <img src={logoSvg} alt="" className="h-4 w-4 object-contain brightness-0 invert" />
-                            ) : (
-                              initial
-                            )}
-                          </div>
+                          <AgentAvatarBubble
+                            agentId={agentId}
+                            displayName={name}
+                            className="mt-0.5 h-8 w-8 text-[11px]"
+                          />
                           <div className="min-w-0 flex-1">
                             <div className="line-clamp-2 text-[13px] font-medium leading-snug text-foreground">
                               <HighlightText text={hit.title} query={debounced} />

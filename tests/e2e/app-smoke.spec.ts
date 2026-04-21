@@ -21,6 +21,11 @@ test.describe('ClawX Electron smoke flows', () => {
     await expect(page.getByTestId('main-layout')).toBeVisible();
     await page.getByTestId('chat-toolbar-agent-details').click();
     await expect(page.getByTestId('agent-details-sheet')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('agent-details-identity-section')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('agent-details-edit-profile').click();
+    await expect(page.getByTestId('edit-agent-info-modal')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('edit-agent-info-name-input')).toBeVisible();
+    await expect(page.locator('[data-testid="edit-agent-tagline-input"]')).toHaveCount(0);
   });
 
   test('sidebar help opens feedback modal and mobile opens wechat modal', async ({ page }) => {

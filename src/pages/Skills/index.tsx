@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { useSkillsStore } from '@/stores/skills';
 import { useGatewayStore } from '@/stores/gateway';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -191,6 +191,7 @@ function SkillDetailDialog({ skill, isOpen, onClose, onToggle, onUninstall, onOp
         className="w-full sm:max-w-[450px] p-0 flex flex-col border-l border-black/10 dark:border-white/10 bg-[#f3f1e9] dark:bg-card shadow-[0_0_40px_rgba(0,0,0,0.2)]"
         side="right"
       >
+        <SheetTitle className="sr-only">{skill.name}</SheetTitle>
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto px-8 py-10">
           <div className="flex flex-col items-center mb-8">
@@ -826,8 +827,12 @@ export function Skills(props: { layout?: PageLayout } = {}) {
           side="right"
         >
           <div className="px-7 py-6 border-b border-black/10 dark:border-white/10">
-            <h2 className="text-[24px] font-serif text-foreground font-normal tracking-tight">{t('marketplace.installDialogTitle')}</h2>
-            <p className="mt-1 text-[13px] text-foreground/70">{t('marketplace.installDialogSubtitle')}</p>
+            <SheetTitle className="text-[24px] font-serif text-foreground font-normal tracking-tight">
+              {t('marketplace.installDialogTitle')}
+            </SheetTitle>
+            <SheetDescription className="mt-1 text-[13px] text-foreground/70">
+              {t('marketplace.installDialogSubtitle')}
+            </SheetDescription>
             <div className="mt-4 flex flex-col md:flex-row gap-2">
               <div className="relative flex items-center bg-black/5 dark:bg-white/5 rounded-xl px-3 py-2 border border-black/10 dark:border-white/10 flex-1">
                 <Search className="h-4 w-4 shrink-0 text-muted-foreground" />

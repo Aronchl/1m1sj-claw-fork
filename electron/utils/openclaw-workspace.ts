@@ -177,8 +177,12 @@ async function mergeClawXContextOnce(): Promise<number> {
 
       const merged = mergeClawXSection(existing, section);
       if (merged !== existing) {
-        await writeFile(targetPath, merged, 'utf-8');
-        logger.info(`Merged ClawX context into ${targetName} (${workspaceDir})`);
+        try {
+          await writeFile(targetPath, merged, 'utf-8');
+          logger.info(`Merged ClawX context into ${targetName} (${workspaceDir})`);
+        } catch (error) {
+          logger.debug(`Skip ClawX context merge for non-writable file ${targetPath}: ${String(error)}`);
+        }
       }
     }
   }

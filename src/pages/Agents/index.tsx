@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Bot, Check, MoreHorizontal, Plus, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, MoreHorizontal, Plus, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -26,6 +26,7 @@ import type { ProviderAccount, ProviderVendorInfo, ProviderWithKeyInfo } from '@
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { AgentAvatarBubble } from '@/components/agent/AgentAvatarBubble';
 import { setAgentUiExtras } from '@/lib/agent-ui-storage';
 import { AGENT_AVATAR_GRADIENT_CLASSES, AGENT_AVATAR_PRESET_COUNT } from '@/lib/agent-avatar-presets';
 import type { PageLayout } from '@/lib/page-layout';
@@ -348,9 +349,11 @@ function AgentCard({
         agent.isDefault && 'bg-black/[0.04] dark:bg-white/[0.06]'
       )}
     >
-      <div className="h-[46px] w-[46px] shrink-0 flex items-center justify-center text-primary bg-primary/10 rounded-full shadow-sm mb-3">
-        <Bot className="h-[22px] w-[22px]" />
-      </div>
+      <AgentAvatarBubble
+        agentId={agent.id}
+        displayName={agent.name}
+        className="mb-3 h-[46px] w-[46px] text-[15px]"
+      />
       <div className="flex flex-col flex-1 min-w-0 py-0.5 mt-1">
         <div className="flex items-center justify-between gap-3 mb-1">
           <div className="flex items-center gap-2 min-w-0">
@@ -428,7 +431,6 @@ function AgentCard({
 }
 
 const inputClasses = 'h-[44px] rounded-xl font-mono text-[13px] bg-[#eeece3] dark:bg-muted border-black/10 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 shadow-sm transition-all text-foreground placeholder:text-foreground/40';
-const selectClasses = 'h-[44px] w-full rounded-xl font-mono text-[13px] bg-[#eeece3] dark:bg-muted border border-black/10 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 shadow-sm transition-all text-foreground px-3';
 const labelClasses = 'text-[14px] text-foreground/80 font-bold';
 
 function ChannelLogo({ type }: { type: ChannelType }) {
@@ -895,6 +897,12 @@ function AgentModelModal({
   }, [agent.modelRef, agent.overrideModelRef, defaultModelRef, runtimeProviderOptions]);
 
   const selectedProvider = runtimeProviderOptions.find((option) => option.runtimeProviderKey === selectedRuntimeProviderKey) || null;
+  const hasSingleRuntimeProviderOption = runtimeProviderOptions.length === 1;
+  const singleRuntimeProviderOption = hasSingleRuntimeProviderOption ? runtimeProviderOptions[0] : null;
+  const shouldShowReadonlyProvider = Boolean(
+    singleRuntimeProviderOption
+    && (!selectedRuntimeProviderKey || selectedRuntimeProviderKey === singleRuntimeProviderOption.runtimeProviderKey),
+  );
   const trimmedModelId = modelIdInput.trim();
   const nextModelRef = selectedRuntimeProviderKey && trimmedModelId
     ? `${selectedRuntimeProviderKey}/${trimmedModelId}`
@@ -953,6 +961,14 @@ function AgentModelModal({
     setModelIdInput(parsedDefault.modelId);
   };
 
+  const handleProviderChange = (nextProviderKey: string) => {
+    setSelectedRuntimeProviderKey(nextProviderKey);
+    const option = runtimeProviderOptions.find((candidate) => candidate.runtimeProviderKey === nextProviderKey);
+    // Provider switch should always preload that provider's configured model id,
+    // so users don't need to manually look it up each time.
+    setModelIdInput(option?.configuredModelId || '');
+  };
+
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
       <Card className="w-full max-w-xl rounded-3xl border-0 shadow-2xl bg-[#f3f1e9] dark:bg-card overflow-hidden">
@@ -976,27 +992,58 @@ function AgentModelModal({
         </CardHeader>
         <CardContent className="space-y-4 p-6 pt-4">
           <div className="space-y-2">
-            <Label htmlFor="agent-model-provider" className="text-[12px] text-foreground/70">{t('settingsDialog.modelProviderLabel')}</Label>
-            <select
-              id="agent-model-provider"
-              value={selectedRuntimeProviderKey}
-              onChange={(event) => {
-                const nextProvider = event.target.value;
-                setSelectedRuntimeProviderKey(nextProvider);
-                if (!modelIdInput.trim()) {
-                  const option = runtimeProviderOptions.find((candidate) => candidate.runtimeProviderKey === nextProvider);
-                  setModelIdInput(option?.configuredModelId || '');
-                }
-              }}
-              className={selectClasses}
-            >
-              <option value="">{t('settingsDialog.modelProviderPlaceholder')}</option>
-              {runtimeProviderOptions.map((option) => (
-                <option key={option.runtimeProviderKey} value={option.runtimeProviderKey}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <Label htmlFor="agent-model-provider" className="text-[12px] text-foreground/70">
+              {t('settingsDialog.modelProviderLabel')}
+            </Label>
+            {shouldShowReadonlyProvider && singleRuntimeProviderOption ? (
+              <div className="rounded-xl border border-black/10 dark:border-white/10 bg-[#eeece3] dark:bg-muted px-3 py-2">
+                <p className="text-[13px] text-foreground">{singleRuntimeProviderOption.label}</p>
+                <p className="mt-0.5 text-[11px] font-mono text-muted-foreground">
+                  {singleRuntimeProviderOption.runtimeProviderKey}
+                </p>
+              </div>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    id="agent-model-provider"
+                    type="button"
+                    variant="outline"
+                    className="h-[44px] w-full cursor-pointer justify-between rounded-xl border-black/10 bg-[#eeece3] px-3 text-left font-mono text-[13px] font-normal text-foreground shadow-sm hover:bg-black/5 dark:border-white/10 dark:bg-muted dark:hover:bg-white/5"
+                  >
+                    <span className={cn('truncate', !selectedProvider && 'text-muted-foreground')}>
+                      {selectedProvider?.label || t('settingsDialog.modelProviderPlaceholder')}
+                    </span>
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[--radix-dropdown-menu-trigger-width] min-w-[18rem]">
+                  {runtimeProviderOptions.length === 0 ? (
+                    <DropdownMenuItem disabled className="rounded-xl px-3 py-2 text-[12px] text-muted-foreground">
+                      {t('settingsDialog.modelProviderEmpty')}
+                    </DropdownMenuItem>
+                  ) : (
+                    runtimeProviderOptions.map((option) => (
+                      <DropdownMenuItem
+                        key={option.runtimeProviderKey}
+                        onSelect={() => handleProviderChange(option.runtimeProviderKey)}
+                        className="flex cursor-pointer items-start justify-between gap-3 rounded-xl px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] text-foreground">{option.label}</p>
+                          <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+                            {option.runtimeProviderKey}
+                          </p>
+                        </div>
+                        {selectedRuntimeProviderKey === option.runtimeProviderKey ? (
+                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-foreground" />
+                        ) : null}
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="agent-model-id" className="text-[12px] text-foreground/70">{t('settingsDialog.modelIdLabel')}</Label>

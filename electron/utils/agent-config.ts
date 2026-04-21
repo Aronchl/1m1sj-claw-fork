@@ -1,6 +1,6 @@
-import { access, copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises';
+import { access, chmod, copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises';
 import { constants } from 'fs';
-import { join, normalize } from 'path';
+import { dirname, join, normalize } from 'path';
 import { deleteAgentChannelAccounts, listConfiguredChannels, readOpenClawConfig, writeOpenClawConfig } from './channel-config';
 import { withConfigLock } from './config-mutex';
 import { expandPath, getOpenClawConfigDir, getResourcesDir } from './paths';
@@ -26,6 +26,9 @@ const AGENT_RUNTIME_FILES = [
 ];
 const PREINSTALLED_AGENTS_MANIFEST_NAME = 'preinstalled-manifest.json';
 const PREINSTALLED_AGENTS_LOCK_NAME = '.clawx-preinstalled-agents.json';
+const MAIN_AGENT_PROTECTED_GUIDE_FILES = ['AGENTS.md', 'SOUL.md', 'TOOLS.md'] as const;
+const FILE_MODE_OWNER_WRITABLE = 0o644;
+const FILE_MODE_READONLY = 0o444;
 
 interface PreinstalledAgentSpec {
   id: string;
@@ -190,6 +193,79 @@ async function ensureDir(path: string): Promise<void> {
   if (!(await fileExists(path))) {
     await mkdir(path, { recursive: true });
   }
+}
+
+/**
+ * Recursively copy bundled workspace/skills files into the user's workspace when
+ * missing (same policy as root *.md seeds). Skips dotfiles (e.g. lock files).
+ */
+async function seedMissingSkillsTree(
+  templateSkillsRoot: string,
+  targetSkillsRoot: string,
+  relativeDir = '',
+): Promise<number> {
+  if (!(await fileExists(templateSkillsRoot))) {
+    return 0;
+  }
+  const scanDir = relativeDir ? join(templateSkillsRoot, relativeDir) : templateSkillsRoot;
+  let copied = 0;
+  const entries = await readdir(scanDir, { withFileTypes: true });
+  for (const ent of entries) {
+    if (ent.name.startsWith('.')) continue;
+    const rel = relativeDir ? join(relativeDir, ent.name) : ent.name;
+    const source = join(templateSkillsRoot, rel);
+    const target = join(targetSkillsRoot, rel);
+    if (ent.isDirectory()) {
+      copied += await seedMissingSkillsTree(templateSkillsRoot, targetSkillsRoot, rel);
+    } else if (ent.isFile()) {
+      if (await fileExists(target)) continue;
+      await ensureDir(dirname(target));
+      await copyFile(source, target);
+      copied += 1;
+    }
+  }
+  return copied;
+}
+
+async function setFileModeSafely(path: string, mode: number): Promise<void> {
+  try {
+    await chmod(path, mode);
+  } catch {
+    // Ignore chmod failures (e.g. filesystems without chmod support). We still
+    // enforce protected files by copying bundled templates on startup.
+  }
+}
+
+async function enforceMainProtectedGuideFiles(
+  templateRoot: string,
+  targetWorkspace: string,
+): Promise<number> {
+  let enforced = 0;
+
+  for (const fileName of MAIN_AGENT_PROTECTED_GUIDE_FILES) {
+    const source = join(templateRoot, fileName);
+    try {
+      const sourceStat = await stat(source);
+      if (!sourceStat.isFile()) continue;
+    } catch {
+      continue;
+    }
+
+    const target = join(targetWorkspace, fileName);
+    await setFileModeSafely(target, FILE_MODE_OWNER_WRITABLE);
+    await copyFile(source, target);
+    await setFileModeSafely(target, FILE_MODE_READONLY);
+    enforced += 1;
+  }
+
+  if (enforced > 0) {
+    logger.info('Applied protected guide file policy for main agent workspace', {
+      workspace: targetWorkspace,
+      files: [...MAIN_AGENT_PROTECTED_GUIDE_FILES],
+    });
+  }
+
+  return enforced;
 }
 
 function getDefaultWorkspacePath(config: AgentConfigDocument): string {
@@ -837,6 +913,22 @@ async function resolvePreinstalledAgentWorkspaceTemplateDir(agentId: string): Pr
   return null;
 }
 
+async function resolveMainAgentWorkspaceTemplateDir(): Promise<string | null> {
+  const candidates = [
+    join(getResourcesDir(), 'agents', MAIN_AGENT_ID, 'workspace'),
+    join(process.cwd(), 'resources', 'agents', MAIN_AGENT_ID, 'workspace'),
+    // Temporary compatibility fallback until a dedicated main template is added.
+    join(getResourcesDir(), 'agents', 'clawx-preset', 'workspace'),
+    join(process.cwd(), 'resources', 'agents', 'clawx-preset', 'workspace'),
+  ];
+  for (const dir of candidates) {
+    if (await fileExists(dir)) {
+      return dir;
+    }
+  }
+  return null;
+}
+
 async function syncPreinstalledAgentWorkspaceTemplates(entry: AgentListEntry): Promise<void> {
   const templateRoot = await resolvePreinstalledAgentWorkspaceTemplateDir(entry.id);
   if (!templateRoot) return;
@@ -849,13 +941,12 @@ async function syncPreinstalledAgentWorkspaceTemplates(entry: AgentListEntry): P
   for (const name of names) {
     if (!name.endsWith('.md') || name.startsWith('.')) continue;
     const source = join(templateRoot, name);
-    let isFile = false;
     try {
-      isFile = (await stat(source)).isFile();
+      const st = await stat(source);
+      if (!st.isFile()) continue;
     } catch {
       continue;
     }
-    if (!isFile) continue;
     const target = join(targetWorkspace, name);
     await copyFile(source, target);
     copied += 1;
@@ -864,6 +955,50 @@ async function syncPreinstalledAgentWorkspaceTemplates(entry: AgentListEntry): P
   if (copied > 0) {
     logger.info('Synced preinstalled agent workspace templates', { agentId: entry.id, copied });
   }
+}
+
+/**
+ * Seed the main agent workspace with bundled bootstrap markdown files and
+ * workspace/skills when missing. Protected guide files are always synced from
+ * bundle and then marked read-only to prevent runtime tool edits.
+ */
+export async function ensureMainAgentWorkspaceTemplatesInstalled(): Promise<void> {
+  const templateRoot = await resolveMainAgentWorkspaceTemplateDir();
+  if (!templateRoot) return;
+
+  await withConfigLock(async () => {
+    const config = await readOpenClawConfig() as AgentConfigDocument;
+    const { entries } = normalizeAgentsConfig(config);
+    const mainEntry = entries.find((entry) => entry.id === MAIN_AGENT_ID) ?? createImplicitMainEntry(config);
+    const targetWorkspace = expandPath(mainEntry.workspace || getDefaultWorkspacePath(config));
+    await ensureDir(targetWorkspace);
+
+    let copied = 0;
+    const names = await readdir(templateRoot);
+    for (const name of names) {
+      if (!name.endsWith('.md') || name.startsWith('.')) continue;
+      const source = join(templateRoot, name);
+      try {
+        const st = await stat(source);
+        if (!st.isFile()) continue;
+      } catch {
+        continue;
+      }
+      const target = join(targetWorkspace, name);
+      if (await fileExists(target)) continue;
+      await copyFile(source, target);
+      copied += 1;
+    }
+
+    const templateSkills = join(templateRoot, 'skills');
+    const targetSkills = join(targetWorkspace, 'skills');
+    copied += await seedMissingSkillsTree(templateSkills, targetSkills);
+    copied += await enforceMainProtectedGuideFiles(templateRoot, targetWorkspace);
+
+    if (copied > 0) {
+      logger.info('Seeded main agent workspace templates', { copied, workspace: targetWorkspace });
+    }
+  });
 }
 
 async function getBundledPreinstalledAgentIdSet(): Promise<Set<string>> {

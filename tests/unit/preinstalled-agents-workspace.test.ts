@@ -1,5 +1,5 @@
-import { mkdir, readFile, rm, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { chmod, mkdir, readFile, rm, stat, writeFile } from 'fs/promises';
+import { dirname, join } from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { testHome, testUserData, bundleRoot } = vi.hoisted(() => {
@@ -50,6 +50,18 @@ async function writeWorkspaceTemplate(agentId: string, soulBody: string): Promis
   await writeFile(join(ws, 'SOUL.md'), soulBody, 'utf8');
 }
 
+async function writeMainWorkspaceTemplate(fileName: string, body: string): Promise<void> {
+  const ws = join(bundleRoot, 'agents', 'main', 'workspace');
+  await mkdir(ws, { recursive: true });
+  await writeFile(join(ws, fileName), body, 'utf8');
+}
+
+async function writeMainWorkspaceSkill(relativePath: string, body: string): Promise<void> {
+  const full = join(bundleRoot, 'agents', 'main', 'workspace', 'skills', relativePath);
+  await mkdir(dirname(full), { recursive: true });
+  await writeFile(full, body, 'utf8');
+}
+
 describe('preinstalled agent workspace templates', () => {
   beforeEach(async () => {
     vi.resetModules();
@@ -98,5 +110,74 @@ describe('preinstalled agent workspace templates', () => {
 
     await ensurePreinstalledAgentsInstalled();
     await expect(readFile(soulPath, 'utf8')).resolves.toBe('user-edited');
+  });
+
+  it('keeps protected main guide files synced from bundle', async () => {
+    await writeMainWorkspaceTemplate('SOUL.md', 'main-soul');
+    await writeMainWorkspaceTemplate('AGENTS.md', 'main-agents');
+    await writeMainWorkspaceTemplate('TOOLS.md', 'main-tools');
+    await writeMainWorkspaceTemplate('IDENTITY.md', 'main-identity');
+
+    const { ensureMainAgentWorkspaceTemplatesInstalled } = await import('@electron/utils/agent-config');
+    await ensureMainAgentWorkspaceTemplatesInstalled();
+
+    const mainWorkspaceDir = join(testHome, '.openclaw', 'workspace');
+    const soulPath = join(mainWorkspaceDir, 'SOUL.md');
+    const agentsPath = join(mainWorkspaceDir, 'AGENTS.md');
+    const toolsPath = join(mainWorkspaceDir, 'TOOLS.md');
+    const identityPath = join(mainWorkspaceDir, 'IDENTITY.md');
+
+    await expect(readFile(soulPath, 'utf8')).resolves.toBe('main-soul');
+    await expect(readFile(agentsPath, 'utf8')).resolves.toBe('main-agents');
+    await expect(readFile(toolsPath, 'utf8')).resolves.toBe('main-tools');
+    await expect(readFile(identityPath, 'utf8')).resolves.toBe('main-identity');
+
+    await writeMainWorkspaceTemplate('SOUL.md', 'main-soul-v2');
+    await writeMainWorkspaceTemplate('AGENTS.md', 'main-agents-v2');
+    await writeMainWorkspaceTemplate('TOOLS.md', 'main-tools-v2');
+    await chmod(soulPath, 0o644);
+    await chmod(agentsPath, 0o644);
+    await chmod(toolsPath, 0o644);
+    await writeFile(soulPath, 'user-edited-main-soul', 'utf8');
+    await writeFile(agentsPath, 'user-edited-main-agents', 'utf8');
+    await writeFile(toolsPath, 'user-edited-main-tools', 'utf8');
+    await ensureMainAgentWorkspaceTemplatesInstalled();
+
+    await expect(readFile(soulPath, 'utf8')).resolves.toBe('main-soul-v2');
+    await expect(readFile(agentsPath, 'utf8')).resolves.toBe('main-agents-v2');
+    await expect(readFile(toolsPath, 'utf8')).resolves.toBe('main-tools-v2');
+    await expect(readFile(identityPath, 'utf8')).resolves.toBe('main-identity');
+  });
+
+  it('marks protected main guide files as read-only', async () => {
+    await writeMainWorkspaceTemplate('SOUL.md', 'main-soul');
+    await writeMainWorkspaceTemplate('AGENTS.md', 'main-agents');
+    await writeMainWorkspaceTemplate('TOOLS.md', 'main-tools');
+
+    const { ensureMainAgentWorkspaceTemplatesInstalled } = await import('@electron/utils/agent-config');
+    await ensureMainAgentWorkspaceTemplatesInstalled();
+
+    const mainWorkspaceDir = join(testHome, '.openclaw', 'workspace');
+    const soulPath = join(mainWorkspaceDir, 'SOUL.md');
+    const soulStat = await stat(soulPath);
+    if (process.platform !== 'win32') {
+      expect((soulStat.mode & 0o200) === 0).toBe(true);
+    }
+  });
+
+  it('seeds main workspace skills tree only when files are missing', async () => {
+    await writeMainWorkspaceTemplate('SOUL.md', 'main-soul');
+    await writeMainWorkspaceSkill('demo-skill/SKILL.md', 'skill-body');
+
+    const { ensureMainAgentWorkspaceTemplatesInstalled } = await import('@electron/utils/agent-config');
+    await ensureMainAgentWorkspaceTemplatesInstalled();
+
+    const mainWorkspaceDir = join(testHome, '.openclaw', 'workspace');
+    const skillPath = join(mainWorkspaceDir, 'skills', 'demo-skill', 'SKILL.md');
+    await expect(readFile(skillPath, 'utf8')).resolves.toBe('skill-body');
+
+    await writeFile(skillPath, 'user-skill-edit', 'utf8');
+    await ensureMainAgentWorkspaceTemplatesInstalled();
+    await expect(readFile(skillPath, 'utf8')).resolves.toBe('user-skill-edit');
   });
 });

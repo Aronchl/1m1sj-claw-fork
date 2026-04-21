@@ -8,7 +8,7 @@
 
 ### ⚠️ 最高优先级规则
 
-> **所有文本文件写入必须走 `qclaw-text-file` SKILL 脚本，禁止用内置 `write` 工具写最终文件！**
+> **所有文本文件写入必须走 `qclaw-text-file` SKILL 脚本，禁止用内置 `write` 工具写最终目标文件！**
 
 ### 原因
 
@@ -19,11 +19,9 @@
 
 ### 正确流程
 
-```
-1. 用 write 工具写临时文件 → $env:TEMP\_tw_<文件名>.txt
-2. 调用脚本写入目标文件 → python ".../write_file.py" --path <目标路径> --content-file <临时文件>
+1. 用 write 工具写临时文件 → `$env:TEMP\_tw_<文件名>.txt`
+2. 调用脚本写入目标文件 → `python ".../write_file.py" --path <目标路径> --content-file <临时文件>`
 3. 清理临时文件
-```
 
 ### 例外
 
@@ -32,7 +30,33 @@
 
 ---
 
-## 二、浏览器自动化
+## 二、SKILL 调用规范
+
+### 调用原则
+
+| 原则 | 说明 |
+|---|---|
+| **本地优先** | 本地已有 skill 直接用，禁止绕过本地去 clawhub 搜索同名 skill |
+| **missing 先修复** | skill 状态为 missing 时，先安装依赖再调用 |
+| **先读后用** | 调用 skill 前必须先读取其 SKILL.md 了解用法 |
+| **动态匹配** | 扫描 `<available_skills>` 的 description 字段，按关键词匹配 |
+
+### 常用 SKILL 速查
+
+| 场景 | 推荐 SKILL |
+|---|---|
+| 活动策划 | `ocow-event-planner` |
+| 志愿者管理 | `ocow-charity-volunteer-manager` |
+| 文案撰写 | `ocow-content-writer` |
+| 仪式设计 | `ocow-ceremony-designer` |
+| 公益合规 | `ocow-charity-toolkit` |
+| 捐赠管理 | `ocow-donation-coordinator` |
+| 数据统计 | `ocow-charity-analytics` |
+| 文件写入 | `qclaw-text-file` |
+
+---
+
+## 三、浏览器自动化
 
 ### 何时使用
 
@@ -42,13 +66,11 @@
 
 ### 标准流程
 
-```
-1. 启动隔离浏览器 → browser action=start
-2. 打开目标页面   → browser action=open url=<URL>
-3. 获取页面快照   → browser action=snapshot
-4. 执行操作       → browser action=act
-5. 完成后关闭     → browser action=stop
-```
+1. 启动隔离浏览器 → `browser action=start`
+2. 打开目标页面 → `browser action=open url=<URL>`
+3. 获取页面快照 → `browser action=snapshot`
+4. 执行操作 → `browser action=act`
+5. 完成后关闭 → `browser action=stop`
 
 ### 禁止行为
 
@@ -57,14 +79,13 @@
 
 ---
 
-## 三、Shell / 命令行执行
+## 四、Shell / 命令行执行
 
 ### Windows 编码处理（强制）
 
 执行任何 PowerShell/cmd 命令前，必须先设置编码：
 
 ```powershell
-# PowerShell
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 chcp 65001
@@ -78,7 +99,7 @@ chcp 65001
 
 ---
 
-## 四、MCP 工具调用
+## 五、MCP 工具调用
 
 ### 何时使用
 
@@ -87,38 +108,11 @@ chcp 65001
 
 ### 流程
 
-```
 1. 确认 MCP 工具需求
-2. 使用 mcporter 工具检索
+2. 使用 `mcporter` 工具检索
 3. 验证工具可用性
 4. 执行调用
 5. 验证结果
-```
-
----
-
-## 五、SKILL 使用规范
-
-### 调用原则
-
-| 原则 | 说明 |
-|------|------|
-| **本地优先** | 本地已有 skill 直接用，禁止绕过本地去 clawhub 搜索同名 skill |
-| **missing 先修复** | skill 状态为 missing 时，先安装依赖再调用 |
-| **先读后用** | 调用 skill 前必须先读取其 SKILL.md 了解用法 |
-
-### 常用 SKILL 速查
-
-| 场景 | 推荐 SKILL |
-|------|-----------|
-| 活动策划 | `ocow-event-planner` |
-| 志愿者管理 | `ocow-charity-volunteer-manager` |
-| 文案撰写 | `ocow-content-writer` |
-| 仪式设计 | `ocow-ceremony-designer` |
-| 公益合规 | `ocow-charity-toolkit` |
-| 捐赠管理 | `ocow-donation-coordinator` |
-| 数据统计 | `ocow-charity-analytics` |
-| 文件写入 | `qclaw-text-file` |
 
 ---
 

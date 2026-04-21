@@ -117,6 +117,7 @@ ClawX 现在还内置了腾讯官方个人微信渠道插件，可直接在 Chan
 ### 🧩 可扩展技能系统
 通过预构建的技能扩展 AI 智能体的能力。在集成的技能面板中浏览、安装和管理技能——无需包管理器。
 ClawX 还会内置预装完整的文档处理技能（`pdf`、`xlsx`、`docx`、`pptx`），在启动时自动部署到托管技能目录（默认 `~/.openclaw/skills`），并在首次安装时默认启用。额外预装技能（`find-skills`、`self-improving-agent`、`tavily-search`、`brave-web-search`）也会默认启用；若缺少必需的 API Key，OpenClaw 会在运行时给出配置错误提示。  
+每次启动时，ClawX 会**清空并重建**整个 `~/.openclaw/skills` 目录，仅安装安装包内 `resources/skills/preinstalled-manifest.json` 列出的技能（通过 ClawHub 或手动拷入该目录的额外技能**不会保留**）。`~/.openclaw/openclaw.json` 中的 `skills.entries` 也会裁减为仅包含上述清单中的 slug（仅对仍存在的 slug 保留原有配置项）。  
 Skills 页面可展示来自多个 OpenClaw 来源的技能（托管目录、workspace、额外技能目录），并显示每个技能的实际路径，便于直接打开真实安装位置。
 
 构建预装技能（`pnpm run bundle:preinstalled-skills`）时读取 `resources/skills/preinstalled-manifest.json`：不写 `gitHost` 时默认从 Gitee 拉取（`https://gitee.com/<repo>.git`）。仓库内清单指向 Gitee 的 `cbtec/ocow-skills`（`master` 分支；`repoPath` 与 `slug` 对应的一级目录）。若要从 GitHub 或其他同样采用 `owner/repo` 路径的托管拉取，可在条目中显式设置 `"gitHost"`。`repoPath` 为仓库根目录下的相对路径（通常为一级技能目录名）。若拉取失败，请核对 `ref` 是否与远程默认分支一致（`master` / `main`）。

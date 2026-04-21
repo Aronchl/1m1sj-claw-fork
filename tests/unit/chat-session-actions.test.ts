@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const invokeIpcMock = vi.fn();
+const toastErrorMock = vi.fn();
+
+vi.mock('sonner', () => ({
+  toast: { error: (...args: unknown[]) => toastErrorMock(...args) },
+}));
 
 vi.mock('@/lib/api-client', () => ({
   invokeIpc: (...args: unknown[]) => invokeIpcMock(...args),
@@ -53,6 +58,7 @@ describe('chat session actions', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     invokeIpcMock.mockResolvedValue({ success: true });
+    toastErrorMock.mockReset();
   });
 
   it('switchSession preserves non-main session that has activity history', async () => {
@@ -115,6 +121,25 @@ describe('chat session actions', () => {
     expect(next.sessionLabels['agent:foo:session-a']).toBeUndefined();
     expect(next.sessionLastActivity['agent:foo:session-a']).toBeUndefined();
     expect(h.read().loadHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('deleteSession leaves state unchanged when IPC reports failure', async () => {
+    invokeIpcMock.mockResolvedValueOnce({ success: false, error: 'disk full' });
+    const { createSessionActions } = await import('@/stores/chat/session-actions');
+    const h = makeHarness({
+      currentSessionKey: 'agent:foo:session-a',
+      sessions: [{ key: 'agent:foo:session-a' }, { key: 'agent:foo:main' }],
+      sessionLabels: { 'agent:foo:session-a': 'A' },
+      sessionLastActivity: { 'agent:foo:session-a': 1 },
+      messages: [{ role: 'user' }],
+    });
+    const actions = createSessionActions(h.set as never, h.get as never);
+
+    await actions.deleteSession('agent:foo:session-a');
+    const next = h.read();
+    expect(next.sessions.map((s) => s.key)).toEqual(['agent:foo:session-a', 'agent:foo:main']);
+    expect(next.sessionLabels['agent:foo:session-a']).toBe('A');
+    expect(toastErrorMock).toHaveBeenCalled();
   });
 
   it('newSession creates a canonical session key and clears transient state', async () => {
@@ -186,7 +211,9 @@ describe('chat session actions', () => {
     await actions.loadSessions();
 
     expect(h.read().sessionLastActivity['agent:main:main']).toBe(1773281700000);
-    expect(h.read().sessionLastActivity['agent:main:cron:job-1']).toBe(1773281731621);
+    // Cron sessions omit updatedAt from sessionLastActivity (see loadSessions +
+    // isCronSessionKey); activity comes from chat.history instead.
+    expect(h.read().sessionLastActivity['agent:main:cron:job-1']).toBeUndefined();
     expect(h.read().sessions.find((session) => session.key === 'agent:main:cron:job-1')?.updatedAt).toBe(1773281731621);
   });
 });

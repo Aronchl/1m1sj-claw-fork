@@ -42,6 +42,9 @@
         "badge": "Scheduled",
         "avatarHint": "This thread is a scheduled task run"
     },
+    "session": {
+        "deleteFailed": "Could not delete conversation: {{error}}"
+    },
     "agentEdit": {
         "title": "Edit agent",
         "nameRequired": "Name is required",
@@ -57,14 +60,12 @@
     "agentDetails": {
         "sheetTitle": "Agent details",
         "collapse": "Collapse",
-        "editProfile": "Edit name & subtitle",
+        "editProfile": "Edit profile",
         "personaSection": "Agent instructions",
-        "editPersona": "Edit instructions",
-        "personaPlaceholder": "Background, tone, and constraints…",
-        "cancel": "Cancel",
-        "save": "Save",
-        "personaSaved": "Instructions saved locally",
-        "personaEmpty": "Tap to add instructions (saved on this device only).",
+        "identityFromFile": "From workspace IDENTITY.md (read-only)",
+        "identityLoading": "Loading…",
+        "identityError": "Could not read IDENTITY.md",
+        "identityEmpty": "No IDENTITY.md content yet.",
         "inspirationSection": "Inspiration",
         "addInspiration": "+ Add inspiration",
         "defaultTagline": "Assistant"

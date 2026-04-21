@@ -4,6 +4,8 @@
  * Communicates with OpenClaw Gateway via renderer WebSocket RPC.
  */
 import { create } from 'zustand';
+import { toast } from 'sonner';
+import i18n from '@/i18n';
 import { hostApiFetch } from '@/lib/host-api';
 import { useGatewayStore } from './gateway';
 import { useAgentsStore } from './agents';
@@ -1169,30 +1171,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // ── Delete session ──
   //
-  // NOTE: The OpenClaw Gateway does NOT expose a sessions.delete (or equivalent)
-  // RPC — confirmed by inspecting client.ts, protocol.ts and the full codebase.
-  // Deletion is therefore a local-only UI operation: the session is removed from
-  // the sidebar list and its labels/activity maps are cleared.  The underlying
-  // JSONL history file on disk is intentionally left intact, consistent with the
-  // newSession() design that avoids sessions.reset to preserve history.
+  // Gateway has no sessions.delete RPC; we delete transcripts locally via Host API:
+  // remove <uuid>.jsonl (and legacy <uuid>.deleted.jsonl) and strip the entry from sessions.json.
+  // The UI list is only updated after that succeeds (see deleteSession).
 
   deleteSession: async (key: string) => {
-    // Soft-delete the session's JSONL transcript on disk.
-    // The main process renames <suffix>.jsonl → <suffix>.deleted.jsonl so that
-    // sessions.list skips it automatically.
     try {
-      const result = await hostApiFetch<{
-        success: boolean;
-        error?: string;
-      }>('/api/sessions/delete', {
+      await hostApiFetch<{ success: boolean }>('/api/sessions/delete', {
         method: 'POST',
         body: JSON.stringify({ sessionKey: key }),
       });
-      if (!result.success) {
-        console.warn(`[deleteSession] IPC reported failure for ${key}:`, result.error);
-      }
     } catch (err) {
-      console.warn(`[deleteSession] IPC call failed for ${key}:`, err);
+      const detail = err instanceof Error ? err.message : String(err);
+      console.warn(`[deleteSession] Failed for ${key}:`, detail);
+      toast.error(
+        i18n.t('chat:session.deleteFailed', {
+          error: detail,
+        }),
+      );
+      return;
     }
 
     const { currentSessionKey, sessions } = get();

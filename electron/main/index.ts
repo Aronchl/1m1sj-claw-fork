@@ -38,7 +38,7 @@ import { acquireProcessInstanceFileLock } from './process-instance-lock';
 import { getSetting } from '../utils/store';
 import { ensureBuiltinSkillsInstalled, ensurePreinstalledSkillsInstalled } from '../utils/skill-config';
 import { ensureAllBundledPluginsInstalled } from '../utils/plugin-install';
-import { ensurePreinstalledAgentsInstalled } from '../utils/agent-config';
+import { ensureMainAgentWorkspaceTemplatesInstalled, ensurePreinstalledAgentsInstalled } from '../utils/agent-config';
 import { startHostApiServer } from '../api/server';
 import { HostEventBus } from '../api/event-bus';
 import { deviceOAuthManager } from '../utils/device-oauth';
@@ -348,25 +348,29 @@ async function initialize(): Promise<void> {
     });
   }
 
-  // Pre-deploy built-in skills (feishu-doc, feishu-drive, feishu-perm, feishu-wiki)
-  // to ~/.openclaw/skills/ so they are immediately available without manual install.
-  if (!isE2EMode) {
-    void ensureBuiltinSkillsInstalled().catch((error) => {
-      logger.warn('Failed to install built-in skills:', error);
-    });
-  }
-
   // Pre-deploy bundled third-party skills from resources/preinstalled-skills.
-  // This installs full skill directories (not only SKILL.md) in an idempotent,
-  // non-destructive way and never blocks startup.
+  // Wipes ~/.openclaw/skills then installs only manifest-listed skills (full replace).
   if (!isE2EMode) {
     void ensurePreinstalledSkillsInstalled().catch((error) => {
       logger.warn('Failed to install preinstalled skills:', error);
     });
   }
 
+  // Pre-deploy built-in skills from OpenClaw extension bundles (after preinstall wipe).
+  if (!isE2EMode) {
+    void ensureBuiltinSkillsInstalled().catch((error) => {
+      logger.warn('Failed to install built-in skills:', error);
+    });
+  }
+
   // Pre-deploy bundled agents from resources/agents/preinstalled-manifest.json.
   // Existing user-managed agents are preserved; only marked managed agents are upgraded.
+  if (!isE2EMode) {
+    void ensureMainAgentWorkspaceTemplatesInstalled().catch((error) => {
+      logger.warn('Failed to seed main agent workspace templates:', error);
+    });
+  }
+
   if (!isE2EMode) {
     void ensurePreinstalledAgentsInstalled().catch((error) => {
       logger.warn('Failed to install preinstalled agents:', error);

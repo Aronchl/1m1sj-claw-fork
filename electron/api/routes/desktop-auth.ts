@@ -49,7 +49,15 @@ async function callDesktopAuth<T>(
 ): Promise<DesktopAuthApiResponse<T>> {
   const baseUrl = resolveDesktopAuthBaseUrl();
   const body = new URLSearchParams(payload);
-  const response = await proxyAwareFetch(`${baseUrl}/api/user.desktopauth/${endpoint}`, {
+  // Compatibility: some backend deployments only parse app_id from query string.
+  // Keep existing form body behavior, but mirror app_id in URL to avoid false
+  // "missing appid" errors on desktop-auth endpoints.
+  const url = new URL(`/api/user.desktopauth/${endpoint}`, `${baseUrl}/`);
+  const appId = payload.app_id?.trim();
+  if (appId) {
+    url.searchParams.set('app_id', appId);
+  }
+  const response = await proxyAwareFetch(url.toString(), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
